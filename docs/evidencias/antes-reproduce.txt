@@ -1,0 +1,537 @@
+# Baseline próprio - 2026-11-17T21:19:18.5401832+00:00
+# Comando: make down; make reproduce
+# Legenda: execução original, sem mecanismos de resiliência, com a carga padrão.
+# Carga: baseline=10, requests=200, concurrency=50, distinct=5, timeout=30s, duration=2m; ARGS não informado.
+# A saída abaixo contém reset, build, inicialização e relatório completos.
+docker compose down -v
+ Container cotacao-redis  Stopping
+ Container cotacao-quotation-api  Stopping
+ Container cotacao-prometheus  Stopping
+ Container cotacao-quotation-api  Stopped
+ Container cotacao-quotation-api  Removing
+ Container cotacao-quotation-api  Removed
+ Container cotacao-partner-degrading  Stopping
+ Container cotacao-partner-slow  Stopping
+ Container cotacao-partner-flaky  Stopping
+ Container cotacao-prometheus  Stopped
+ Container cotacao-prometheus  Removing
+ Container cotacao-prometheus  Removed
+ Container cotacao-otel-collector  Stopping
+ Container cotacao-redis  Stopped
+ Container cotacao-redis  Removing
+ Container cotacao-redis  Removed
+ Container cotacao-partner-slow  Stopped
+ Container cotacao-partner-slow  Removing
+ Container cotacao-partner-slow  Removed
+ Container cotacao-partner-degrading  Stopped
+ Container cotacao-partner-degrading  Removing
+ Container cotacao-partner-degrading  Removed
+ Container cotacao-partner-flaky  Stopped
+ Container cotacao-partner-flaky  Removing
+ Container cotacao-partner-flaky  Removed
+ Container cotacao-otel-collector  Stopped
+ Container cotacao-otel-collector  Removing
+ Container cotacao-otel-collector  Removed
+ Container cotacao-jaeger  Stopping
+ Container cotacao-jaeger  Stopped
+ Container cotacao-jaeger  Removing
+ Container cotacao-jaeger  Removed
+ Network desafiofundamentosdearquiteturadesolucao_default  Removing
+ Network desafiofundamentosdearquiteturadesolucao_default  Removed
+docker compose up -d --build --wait
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.71kB 0.0s done
+#1 DONE 0.0s
+
+#2 [partner-degrading internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.07kB 0.0s done
+#2 DONE 0.0s
+
+#3 [partner-flaky internal] load metadata for docker.io/library/alpine:3.20
+#3 DONE 0.1s
+
+#4 [quotation-api internal] load metadata for docker.io/library/golang:1.25-alpine
+#4 DONE 1.0s
+
+#5 [partner-flaky internal] load .dockerignore
+#5 transferring context: 128B done
+#5 DONE 0.0s
+
+#6 [partner-degrading build 1/6] FROM docker.io/library/golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59
+#6 resolve docker.io/library/golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 0.0s done
+#6 DONE 0.0s
+
+#7 [partner-degrading stage-1 1/2] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#7 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc 0.0s done
+#7 DONE 0.0s
+
+#8 [quotation-api internal] load build context
+#8 transferring context: 1.91kB 0.0s done
+#8 DONE 0.0s
+
+#9 [partner-degrading build 2/6] WORKDIR /src
+#9 CACHED
+
+#10 [partner-degrading build 3/6] COPY go.mod go.sum ./
+#10 CACHED
+
+#11 [partner-degrading build 4/6] RUN go mod download
+#11 CACHED
+
+#12 [partner-degrading build 5/6] COPY . .
+#12 CACHED
+
+#13 [partner-degrading build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/partner-mock
+#13 CACHED
+
+#14 [partner-degrading stage-1 2/2] COPY --from=build /out/app /app
+#14 CACHED
+
+#13 [partner-flaky build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/partner-mock
+#13 CACHED
+
+#10 [partner-flaky build 3/6] COPY go.mod go.sum ./
+#10 CACHED
+
+#11 [partner-flaky build 4/6] RUN go mod download
+#11 CACHED
+
+#12 [partner-flaky build 5/6] COPY . .
+#12 CACHED
+
+#15 [quotation-api build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/quotation-api
+#15 CACHED
+
+#9 [partner-flaky build 2/6] WORKDIR /src
+#9 CACHED
+
+#16 [quotation-api stage-1 2/2] COPY --from=build /out/app /app
+#16 CACHED
+
+#17 [partner-slow] exporting to image
+#17 exporting layers done
+#17 exporting manifest sha256:19b98307ae60795809c6774a383fd2acffa248a6661508a8d29c94331067951e 0.1s done
+#17 exporting config sha256:a19b58a3a5c630d4f05a5fa2475ab2fac4b5f9cc8dbe100d2ac98278fe5d0dd5 0.1s done
+#17 exporting attestation manifest sha256:987804d0658b3c2d5ce12cf2a39f5c8975f4a730c60a1e523d6554368fcf4bf2 0.2s done
+#17 exporting manifest list sha256:49dcfdec04caa9780b174ef0e254a6f0126bc9b8e775c95560d8e82ff552d2ab
+#17 exporting manifest list sha256:49dcfdec04caa9780b174ef0e254a6f0126bc9b8e775c95560d8e82ff552d2ab 0.1s done
+#17 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest 0.0s done
+#17 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest
+#17 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest 0.0s done
+#17 DONE 0.5s
+
+#18 [partner-flaky] exporting to image
+#18 exporting layers done
+#18 exporting manifest sha256:c78d932f35d3cb15d26bbe9ad67447db32edfea34497ee6ae34d1d203a8834ac 0.1s done
+#18 exporting config sha256:e293757c6a7bbcb492a56c5aaa9c53b8df023cf2b0627be72039c83fb568fcec 0.1s done
+#18 exporting attestation manifest sha256:9e2bcbfb42de194fa5ea6350a47305d9e0087201abe01720bd9c7b987362e32f 0.2s done
+#18 exporting manifest list sha256:ea83c208a9f3b17ae601226b204feb09df4381ca4b4436a65e32f29a70185659 0.1s done
+#18 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-flaky:latest 0.0s done
+#18 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-flaky:latest 0.0s done
+#18 DONE 0.5s
+
+#19 [partner-degrading] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:1bd5c6632b9d54da51641bf6e22a72418b7304d55a84c3b5eba58762737d0b3f 0.1s done
+#19 exporting config sha256:4aa208e236758bec7fd3d5332242711dd39e9615b9b5c80ea00d4cc7fb164da2 0.1s done
+#19 exporting attestation manifest sha256:67bc062e0ca02b0aef5c6a1863b8c6df9850d9a38f68881a4947bc915d37e685 0.2s done
+#19 exporting manifest list sha256:07df61c96d259f53fdadf08f9313547b6edbd4236a5781bd96826586cd59b00a 0.1s done
+#19 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-degrading:latest 0.0s done
+#19 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-degrading:latest 0.0s done
+#19 DONE 0.5s
+
+#20 [quotation-api] exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:abba9fc5feba9dd4f85282c2fe0ce997633a53d1a857293ed4e8ea76a0e40a39 0.1s done
+#20 exporting config sha256:f46aa2c7b99f34908fb11e527d0c3db8997ae912c82f49994a32922249e8f38f 0.1s done
+#20 exporting attestation manifest sha256:9dad7603074d6f7be2a6b735adcb860a5b7bdfd718e844ae2eaf7031d3e60d12 0.2s done
+#20 exporting manifest list sha256:318f599f11c4c99fa9991551dd39e5e509a8ef80746297529ad532f73f49d086 0.1s done
+#20 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-quotation-api:latest 0.0s done
+#20 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-quotation-api:latest 0.0s done
+#20 DONE 0.5s
+
+#21 [partner-slow] resolving provenance for metadata file
+#21 ...
+
+#22 [partner-flaky] resolving provenance for metadata file
+#22 DONE 0.3s
+
+#23 [quotation-api] resolving provenance for metadata file
+#23 DONE 0.2s
+
+#21 [partner-slow] resolving provenance for metadata file
+#21 DONE 0.3s
+
+#24 [partner-degrading] resolving provenance for metadata file
+#24 DONE 0.0s
+ desafiofundamentosdearquiteturadesolucao-partner-slow  Built
+ desafiofundamentosdearquiteturadesolucao-quotation-api  Built
+ desafiofundamentosdearquiteturadesolucao-partner-degrading  Built
+ desafiofundamentosdearquiteturadesolucao-partner-flaky  Built
+ Network desafiofundamentosdearquiteturadesolucao_default  Creating
+ Network desafiofundamentosdearquiteturadesolucao_default  Created
+ Container cotacao-redis  Creating
+ Container cotacao-partner-degrading  Creating
+ Container cotacao-partner-flaky  Creating
+ Container cotacao-partner-slow  Creating
+ Container cotacao-jaeger  Creating
+ Container cotacao-partner-slow  Created
+ Container cotacao-partner-degrading  Created
+ Container cotacao-jaeger  Created
+ Container cotacao-otel-collector  Creating
+ Container cotacao-partner-flaky  Created
+ Container cotacao-redis  Created
+ Container cotacao-otel-collector  Created
+ Container cotacao-quotation-api  Creating
+ Container cotacao-prometheus  Creating
+ Container cotacao-quotation-api  Created
+ Container cotacao-prometheus  Created
+ Container cotacao-partner-flaky  Starting
+ Container cotacao-jaeger  Starting
+ Container cotacao-partner-degrading  Starting
+ Container cotacao-partner-slow  Starting
+ Container cotacao-redis  Starting
+ Container cotacao-jaeger  Started
+ Container cotacao-otel-collector  Starting
+ Container cotacao-partner-flaky  Started
+ Container cotacao-redis  Started
+ Container cotacao-partner-degrading  Started
+ Container cotacao-partner-slow  Started
+ Container cotacao-otel-collector  Started
+ Container cotacao-prometheus  Starting
+ Container cotacao-partner-degrading  Waiting
+ Container cotacao-partner-slow  Waiting
+ Container cotacao-partner-flaky  Waiting
+ Container cotacao-prometheus  Started
+ Container cotacao-partner-flaky  Healthy
+ Container cotacao-partner-degrading  Healthy
+ Container cotacao-partner-slow  Healthy
+ Container cotacao-quotation-api  Starting
+ Container cotacao-quotation-api  Started
+ Container cotacao-partner-degrading  Waiting
+ Container cotacao-prometheus  Waiting
+ Container cotacao-otel-collector  Waiting
+ Container cotacao-redis  Waiting
+ Container cotacao-quotation-api  Waiting
+ Container cotacao-partner-flaky  Waiting
+ Container cotacao-jaeger  Waiting
+ Container cotacao-partner-slow  Waiting
+ Container cotacao-partner-flaky  Healthy
+ Container cotacao-prometheus  Healthy
+ Container cotacao-partner-degrading  Healthy
+ Container cotacao-partner-slow  Healthy
+ Container cotacao-otel-collector  Healthy
+ Container cotacao-jaeger  Healthy
+ Container cotacao-redis  Healthy
+ Container cotacao-quotation-api  Healthy
+C:/IdeaProjects/MBA/Desafio Fundamentos de Arquitetura de Solucao/.git/.local/tools/make-package/tools/install/bin/make.exe load
+make[1]: Entering directory 'C:/IdeaProjects/MBA/Desafio Fundamentos de Arquitetura de Solucao'
+docker compose run --rm --build loadgen 
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.71kB 0.0s done
+#1 DONE 0.0s
+
+#2 [partner-flaky internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.07kB 0.0s done
+#2 DONE 0.0s
+
+#3 [partner-flaky internal] load metadata for docker.io/library/alpine:3.20
+#3 DONE 0.0s
+
+#4 [partner-degrading internal] load metadata for docker.io/library/golang:1.25-alpine
+#4 DONE 0.3s
+
+#5 [partner-degrading internal] load .dockerignore
+#5 transferring context: 128B done
+#5 DONE 0.0s
+
+#6 [partner-flaky stage-1 1/2] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#6 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc 0.0s done
+#6 DONE 0.1s
+
+#7 [partner-flaky build 1/6] FROM docker.io/library/golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59
+#7 resolve docker.io/library/golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 0.0s done
+#7 DONE 0.1s
+
+#8 [partner-degrading internal] load build context
+#8 transferring context: 1.91kB 0.0s done
+#8 transferring context: 1.91kB 0.0s done
+#8 DONE 0.0s
+
+#9 [quotation-api build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/quotation-api
+#9 CACHED
+
+#10 [quotation-api build 4/6] RUN go mod download
+#10 CACHED
+
+#11 [quotation-api build 3/6] COPY go.mod go.sum ./
+#11 CACHED
+
+#12 [partner-degrading build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/partner-mock
+#12 CACHED
+
+#13 [quotation-api build 2/6] WORKDIR /src
+#13 CACHED
+
+#14 [quotation-api build 5/6] COPY . .
+#14 CACHED
+
+#15 [quotation-api stage-1 2/2] COPY --from=build /out/app /app
+#15 CACHED
+
+#16 [partner-slow stage-1 2/2] COPY --from=build /out/app /app
+#16 CACHED
+
+#17 [partner-flaky] exporting to image
+#17 exporting layers done
+#17 exporting manifest sha256:d201852d25febb2a51780f79dfbd6abb171778519daf7ed87acaed637ab00013 0.1s done
+#17 exporting config sha256:db19ca061e2a29e565bcce5456d304f1ec68ea22ba29e18cabe344175740cf82
+#17 exporting config sha256:db19ca061e2a29e565bcce5456d304f1ec68ea22ba29e18cabe344175740cf82 0.1s done
+#17 exporting attestation manifest sha256:93cc8b9cc9d980b6fdca865d655b22095127527bd9375aa1a0ca019d745923fa
+#17 exporting attestation manifest sha256:93cc8b9cc9d980b6fdca865d655b22095127527bd9375aa1a0ca019d745923fa 0.2s done
+#17 exporting manifest list sha256:b9f617215d5fd2dc44000d6a07ae7e384c58d5ceef38b433e07040f195b1f7ed 0.1s done
+#17 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-flaky:latest
+#17 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-flaky:latest 0.0s done
+#17 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-flaky:latest 0.0s done
+#17 DONE 0.6s
+
+#18 [quotation-api] exporting to image
+#18 exporting layers done
+#18 exporting manifest sha256:ed7cdd417a07f4915a22898b2ed493364c3a6a2ac8d308432911b77934005d99 0.1s done
+#18 exporting config sha256:61ca93febcdb793315f758ac3d1fc9f5768a9d748ead986a70ea23f8dcc8a3da 0.1s done
+#18 exporting attestation manifest sha256:0e4b8810ca5a5ef4906c9cabbf8ebf115ba41e09fe98d2e60055a892db2e0770 0.2s done
+#18 exporting manifest list sha256:3721b78ac1c22f0022ded6f9ad3165b4ea9e92ec2e6646a144b2cf12f33cd882 0.1s done
+#18 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-quotation-api:latest 0.0s done
+#18 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-quotation-api:latest 0.0s done
+#18 DONE 0.6s
+
+#19 [partner-slow] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:67cffccdd781c98edafb0d2396f3d2a8372334561fe3b8bf488098a85d76a1ee 0.1s done
+#19 exporting config sha256:e0d49fc8ee10edbf97a06a73ea9367a94991d8160f7e4be4443ac345dec48901 0.1s done
+#19 exporting attestation manifest sha256:8acc9a52653b84d83e585f8c52fc91e93f3f53e6c931d613f23db08a7c98e455 0.2s done
+#19 exporting manifest list sha256:cc8d340ee4d0f613a5d9c8d3afb1067206386f313b73f0ffed7d6797981cef17 0.1s done
+#19 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest 0.0s done
+#19 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest 0.0s done
+#19 DONE 0.7s
+
+#20 [partner-degrading] exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:a812f3dd811389780aa7c41368512110e8666da49f2c83a7ab7141382bd4cd1c 0.1s done
+#20 exporting config sha256:40ee86c09156ad77e45cb93bd05018c85629510297fb92a935356f068f8ce695 0.1s done
+#20 exporting attestation manifest sha256:eda2bf00ee0d273cd679fdbc2b17f63321f82eab551992434b565022502f43d0 0.2s done
+#20 exporting manifest list sha256:e8b6261cd11844bb4a59328a5589bad9bad840a9d0d5e2a5024f924eed7f6c61 0.1s done
+#20 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-degrading:latest 0.0s done
+#20 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-degrading:latest 0.0s done
+#20 DONE 0.7s
+
+#21 [quotation-api] resolving provenance for metadata file
+#21 DONE 0.3s
+
+#22 [partner-slow] resolving provenance for metadata file
+#22 DONE 0.1s
+
+#23 [partner-flaky] resolving provenance for metadata file
+#23 DONE 0.2s
+
+#24 [partner-degrading] resolving provenance for metadata file
+#24 DONE 0.0s
+ desafiofundamentosdearquiteturadesolucao-partner-degrading  Built
+ desafiofundamentosdearquiteturadesolucao-partner-flaky  Built
+ desafiofundamentosdearquiteturadesolucao-partner-slow  Built
+ desafiofundamentosdearquiteturadesolucao-quotation-api  Built
+ Container cotacao-partner-flaky  Recreate
+ Container cotacao-partner-slow  Recreate
+ Container cotacao-partner-degrading  Recreate
+ Container cotacao-jaeger  Running
+ Container cotacao-otel-collector  Running
+ Container cotacao-partner-flaky  Recreated
+ Container cotacao-partner-slow  Recreated
+ Container cotacao-partner-degrading  Recreated
+ Container cotacao-quotation-api  Recreate
+ Container cotacao-quotation-api  Recreated
+ Container cotacao-partner-flaky  Starting
+ Container cotacao-partner-slow  Starting
+ Container cotacao-partner-degrading  Starting
+ Container cotacao-partner-flaky  Started
+ Container cotacao-partner-slow  Started
+ Container cotacao-partner-degrading  Started
+ Container cotacao-partner-slow  Waiting
+ Container cotacao-partner-flaky  Waiting
+ Container cotacao-partner-degrading  Waiting
+ Container cotacao-partner-flaky  Healthy
+ Container cotacao-partner-slow  Healthy
+ Container cotacao-partner-degrading  Healthy
+ Container cotacao-quotation-api  Starting
+ Container cotacao-quotation-api  Started
+#1 [internal] load local bake definitions
+#1 reading from stdin 3.33kB 0.1s done
+#1 DONE 0.1s
+
+#2 [partner-slow internal] load build definition from Dockerfile
+#2 DONE 0.0s
+
+#2 [partner-degrading internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.07kB 0.0s done
+#2 DONE 0.0s
+
+#3 [partner-degrading internal] load metadata for docker.io/library/alpine:3.20
+#3 DONE 0.0s
+
+#4 [quotation-api internal] load metadata for docker.io/library/golang:1.25-alpine
+#4 DONE 0.3s
+
+#5 [partner-degrading internal] load .dockerignore
+#5 transferring context: 128B done
+#5 DONE 0.0s
+
+#6 [quotation-api stage-1 1/2] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#6 resolve docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc 0.0s done
+#6 DONE 0.0s
+
+#7 [partner-flaky build 1/6] FROM docker.io/library/golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59
+#7 resolve docker.io/library/golang:1.25-alpine@sha256:1ae0735f00daffa3aaf1363a5184c0d2dc55c78e3db4ec70241cdac97bf84b59 0.0s done
+#7 DONE 0.0s
+
+#8 [quotation-api internal] load build context
+#8 transferring context: 1.91kB 0.0s done
+#8 DONE 0.0s
+
+#9 [partner-degrading build 2/6] WORKDIR /src
+#9 CACHED
+
+#10 [partner-degrading build 3/6] COPY go.mod go.sum ./
+#10 CACHED
+
+#11 [partner-degrading build 4/6] RUN go mod download
+#11 CACHED
+
+#12 [partner-degrading build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/partner-mock
+#12 CACHED
+
+#13 [quotation-api build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/quotation-api
+#13 CACHED
+
+#14 [partner-degrading stage-1 2/2] COPY --from=build /out/app /app
+#14 CACHED
+
+#15 [partner-flaky build 5/6] COPY . .
+#15 CACHED
+
+#16 [quotation-api stage-1 2/2] COPY --from=build /out/app /app
+#16 CACHED
+
+#17 [partner-slow] exporting to image
+#17 exporting layers done
+#17 exporting manifest sha256:4de068e78a7b4a0e58d3995509f5775398e73007c881068c995af8e9ce5a9aa3 0.1s done
+#17 exporting config sha256:8b924b14bfdf007837551e14ea6bad7c783faea39dcd3a4a5ad3a0e740e7c847 0.1s done
+#17 exporting attestation manifest sha256:af14b0e2f0a9185953eceaaeb89720f93527fe4f16f3e3f892b0a204673f517b
+#17 exporting attestation manifest sha256:af14b0e2f0a9185953eceaaeb89720f93527fe4f16f3e3f892b0a204673f517b 0.2s done
+#17 exporting manifest list sha256:f1a731de1076e09fcc229a01d97ddffe8cb40ef122ca32ded49b37afbdda0d12
+#17 exporting manifest list sha256:f1a731de1076e09fcc229a01d97ddffe8cb40ef122ca32ded49b37afbdda0d12 0.1s done
+#17 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest
+#17 ...
+
+#18 [partner-flaky] exporting to image
+#18 exporting layers done
+#18 exporting manifest sha256:edb962d8f391a806e1ef1e27afbd7647a6b71b08a9e18a1ffc820e23bc5a7c19 0.1s done
+#18 exporting config sha256:653ba98a1ee55380da0df0d7f0a8086911778ecaad5a09d49d271065645b1949 0.1s done
+#18 exporting attestation manifest sha256:f8b36c6de066c1d76536470ba27372372bc14fe8ccd565dcc74541d4e69ea6d4 0.2s done
+#18 exporting manifest list sha256:85d6ee30d26d58bb45536f269581929e6dfbcaa45f773e1afdb63150697f1bb7 0.1s done
+#18 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-flaky:latest 0.0s done
+#18 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-flaky:latest 0.0s done
+#18 DONE 0.6s
+
+#17 [partner-slow] exporting to image
+#17 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest 0.0s done
+#17 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-slow:latest 0.0s done
+#17 DONE 0.6s
+
+#19 [partner-degrading] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:594a6eff6db2e86d43fa84642bdc737c3c7b053da0010e6d01b835724b693578 0.1s done
+#19 exporting config sha256:1677a4449d077572a06788d12227b843b36cf00ca62b32831cfb3bc6b5a2a610 0.1s done
+#19 exporting attestation manifest sha256:b1a7845f15732a70d95c1a97b4bf536e1924f16bef6efe177eba654730c2441f 0.2s done
+#19 exporting manifest list sha256:4fe84b9527622688bdbb714f8449ee36bd72827f6dfcd8e01c3b4c15986a9c99 0.1s done
+#19 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-degrading:latest 0.0s done
+#19 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-partner-degrading:latest 0.0s done
+#19 DONE 0.6s
+
+#20 [quotation-api] exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:5b7c92c64662c439342e81e1318885846854a46b2dd5fdaeec198dab0cdc8f56 0.1s done
+#20 exporting config sha256:c7fb6bbdfaaa9c80d36b7e2e74049706bef078bae2ccb39cfc223a6e16ad5a11 0.1s done
+#20 exporting attestation manifest sha256:6910ea45d50b7afc74f73c36bbae94887ab6471c96e78d7b657f4719007004e6 0.2s done
+#20 exporting manifest list sha256:882f85784c96f6b1ba5ce512d6d9b6b23a11caa9e9258434918b2c6328a07ad7 0.1s done
+#20 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-quotation-api:latest 0.0s done
+#20 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-quotation-api:latest 0.0s done
+#20 DONE 0.6s
+
+#21 [loadgen build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/loadgen
+#21 ...
+
+#22 [partner-flaky] resolving provenance for metadata file
+#22 DONE 0.7s
+
+#23 [quotation-api] resolving provenance for metadata file
+#23 DONE 0.4s
+
+#24 [partner-degrading] resolving provenance for metadata file
+#24 DONE 0.6s
+
+#25 [partner-slow] resolving provenance for metadata file
+#25 DONE 0.0s
+
+#21 [loadgen build 6/6] RUN CGO_ENABLED=0 go build -trimpath -o /out/app ./cmd/loadgen
+#21 DONE 30.2s
+
+#6 [loadgen stage-1 1/2] FROM docker.io/library/alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+#6 CACHED
+
+#26 [loadgen stage-1 2/2] COPY --from=build /out/app /app
+#26 DONE 0.2s
+
+#27 [loadgen] exporting to image
+#27 exporting layers
+#27 exporting layers 2.1s done
+#27 exporting manifest sha256:d70ff83ab33a3115c4d069e9dd4147b8752b5f9d66d8073822f4e3d68175b33b 0.0s done
+#27 exporting config sha256:3edcc59102ebd5b2a34cceed2395aa7c0f9353fca0cb04ecced9ce6f668c4294 0.0s done
+#27 exporting attestation manifest sha256:06b70e5a6958bb09eba3b1ab3e21d52e0274555e7574d3e8a8d1ea7e57ca0640 0.1s done
+#27 exporting manifest list sha256:fa335ad8449af49de78f11217312c1aba792248a44aa801228a4caf46318c767
+#27 exporting manifest list sha256:fa335ad8449af49de78f11217312c1aba792248a44aa801228a4caf46318c767 0.0s done
+#27 naming to docker.io/library/desafiofundamentosdearquiteturadesolucao-loadgen:latest 0.0s done
+#27 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-loadgen:latest
+#27 unpacking to docker.io/library/desafiofundamentosdearquiteturadesolucao-loadgen:latest 0.2s done
+#27 DONE 2.5s
+
+#28 [loadgen] resolving provenance for metadata file
+#28 DONE 0.0s
+baseline: 10 requests, one at a time...
+load: 200 requests, 50 at a time...
+
+loadgen · http://quotation-api:8080/quotes · tenant corretora-a · 5 distinct quotes
+
+baseline — 10 requests, 1 in flight, 21:20:46 UTC to 21:21:05 UTC
+  success        5 of 10 (50%)
+  latency        p50 1.89s   p95 2.03s   p99 2.03s   max 2.03s
+  throughput     0.5 req/s in 18.77s
+  failures       HTTP 502 from partner-flaky: 5
+
+load — 200 requests, 50 in flight, 21:21:05 UTC to 21:21:29 UTC
+  success        120 of 200 (60%)
+  latency        p50 6.13s   p95 8.01s   p99 8.03s   max 8.05s
+  throughput     8.1 req/s in 24.81s
+  failures       HTTP 502 from partner-flaky: 80
+
+baseline → load
+  p95 latency    2.03s → 8.01s   3.9x
+  max latency    2.03s → 8.05s   4.0x
+  success        50% → 60%
+  throughput     0.5 → 8.1 req/s
+
+where to look
+  Jaeger         http://localhost:16686 · service quotation-api · operation POST /quotes
+  load window    21:21:05 UTC to 21:21:29 UTC (sort by longest first)
+  step by step   docs/roteiro-cenario-de-falha.md
+
+make[1]: Leaving directory 'C:/IdeaProjects/MBA/Desafio Fundamentos de Arquitetura de Solucao'

@@ -1,0 +1,19 @@
+{
+  "startedUtc": "2026-11-17T21:19:18.5401832+00:00",
+  "endedUtc": "2026-11-17T21:21:30.1437411+00:00",
+  "commit": "cbc3c1ee7f595d066d44fa2825c019c74da8bc6d",
+  "branch": "main",
+  "go": "go version go1.25.14 windows/amd64",
+  "docker": "28.4.0",
+  "compose": "2.39.4-desktop.1",
+  "command": "make down; make reproduce",
+  "load": {
+    "durationSeconds": 120,
+    "concurrency": 50,
+    "requests": 200,
+    "timeoutSeconds": 30,
+    "baseline": 10,
+    "distinct": 5
+  },
+  "sourceUnchanged": true
+}

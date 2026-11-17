@@ -1,0 +1,366 @@
+{
+  "name": "desafiofundamentosdearquiteturadesolucao",
+  "networks": {
+    "default": {
+      "name": "desafiofundamentosdearquiteturadesolucao_default",
+      "ipam": {}
+    }
+  },
+  "services": {
+    "jaeger": {
+      "command": null,
+      "container_name": "cotacao-jaeger",
+      "entrypoint": null,
+      "environment": {
+        "COLLECTOR_OTLP_ENABLED": "true"
+      },
+      "image": "jaegertracing/all-in-one:1.65.0",
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 16686,
+          "published": "16686",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "unless-stopped"
+    },
+    "otel-collector": {
+      "command": [
+        "--config=/etc/otel/collector.yaml"
+      ],
+      "container_name": "cotacao-otel-collector",
+      "depends_on": {
+        "jaeger": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "image": "otel/opentelemetry-collector-contrib:0.116.1",
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 4317,
+          "published": "4317",
+          "protocol": "tcp"
+        },
+        {
+          "mode": "ingress",
+          "target": 4318,
+          "published": "4318",
+          "protocol": "tcp"
+        },
+        {
+          "mode": "ingress",
+          "target": 8889,
+          "published": "8889",
+          "protocol": "tcp"
+        },
+        {
+          "mode": "ingress",
+          "target": 8888,
+          "published": "8888",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "C:\\IdeaProjects\\MBA\\Desafio Fundamentos de Arquitetura de Solucao\\deploy\\otel\\collector.yaml",
+          "target": "/etc/otel/collector.yaml",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "partner-degrading": {
+      "build": {
+        "context": "C:\\IdeaProjects\\MBA\\Desafio Fundamentos de Arquitetura de Solucao",
+        "dockerfile": "Dockerfile",
+        "args": {
+          "CMD": "partner-mock"
+        }
+      },
+      "command": null,
+      "container_name": "cotacao-partner-degrading",
+      "entrypoint": null,
+      "environment": {
+        "PARTNER_DEGRADE_AFTER": "5",
+        "PARTNER_DEGRADE_CAP_MS": "6000",
+        "PARTNER_DEGRADE_STEP_MS": "300",
+        "PARTNER_JITTER_MS": "40",
+        "PARTNER_LATENCY_MS": "120",
+        "PARTNER_NAME": "partner-degrading",
+        "PARTNER_SEED": "20260729"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8080/healthz"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 5
+      },
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8080,
+          "published": "9003",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "unless-stopped"
+    },
+    "partner-flaky": {
+      "build": {
+        "context": "C:\\IdeaProjects\\MBA\\Desafio Fundamentos de Arquitetura de Solucao",
+        "dockerfile": "Dockerfile",
+        "args": {
+          "CMD": "partner-mock"
+        }
+      },
+      "command": null,
+      "container_name": "cotacao-partner-flaky",
+      "entrypoint": null,
+      "environment": {
+        "PARTNER_FAILURE_RATE": "0.4",
+        "PARTNER_FAILURE_STATUS": "503",
+        "PARTNER_JITTER_MS": "50",
+        "PARTNER_LATENCY_MS": "150",
+        "PARTNER_NAME": "partner-flaky",
+        "PARTNER_SEED": "20260729"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8080/healthz"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 5
+      },
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8080,
+          "published": "9002",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "unless-stopped"
+    },
+    "partner-slow": {
+      "build": {
+        "context": "C:\\IdeaProjects\\MBA\\Desafio Fundamentos de Arquitetura de Solucao",
+        "dockerfile": "Dockerfile",
+        "args": {
+          "CMD": "partner-mock"
+        }
+      },
+      "command": null,
+      "container_name": "cotacao-partner-slow",
+      "entrypoint": null,
+      "environment": {
+        "PARTNER_JITTER_MS": "200",
+        "PARTNER_LATENCY_MS": "1500",
+        "PARTNER_NAME": "partner-slow",
+        "PARTNER_SEED": "20260729"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8080/healthz"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 5
+      },
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8080,
+          "published": "9001",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "unless-stopped"
+    },
+    "prometheus": {
+      "command": [
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.retention.time=1h"
+      ],
+      "container_name": "cotacao-prometheus",
+      "depends_on": {
+        "otel-collector": {
+          "condition": "service_started",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "image": "prom/prometheus:v3.1.0",
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 9090,
+          "published": "9090",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "unless-stopped",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "C:\\IdeaProjects\\MBA\\Desafio Fundamentos de Arquitetura de Solucao\\deploy\\prometheus\\prometheus.yml",
+          "target": "/etc/prometheus/prometheus.yml",
+          "read_only": true,
+          "bind": {
+            "create_host_path": true
+          }
+        }
+      ]
+    },
+    "quotation-api": {
+      "build": {
+        "context": "C:\\IdeaProjects\\MBA\\Desafio Fundamentos de Arquitetura de Solucao",
+        "dockerfile": "Dockerfile",
+        "args": {
+          "CMD": "quotation-api"
+        }
+      },
+      "command": null,
+      "container_name": "cotacao-quotation-api",
+      "depends_on": {
+        "otel-collector": {
+          "condition": "service_started",
+          "required": true
+        },
+        "partner-degrading": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "partner-flaky": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "partner-slow": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      },
+      "entrypoint": null,
+      "environment": {
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel-collector:4317",
+        "OTEL_SERVICE_NAME": "quotation-api",
+        "PARTNER_ENDPOINTS": "partner-slow=http://partner-slow:8080,partner-flaky=http://partner-flaky:8080,partner-degrading=http://partner-degrading:8080",
+        "PORT": "8080",
+        "TENANTS": "corretora-a,corretora-b"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "-qO-",
+          "http://127.0.0.1:8080/healthz"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 5
+      },
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 8080,
+          "published": "8080",
+          "protocol": "tcp"
+        }
+      ],
+      "restart": "unless-stopped"
+    },
+    "redis": {
+      "command": [
+        "redis-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no"
+      ],
+      "container_name": "cotacao-redis",
+      "entrypoint": null,
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ],
+        "timeout": "3s",
+        "interval": "5s",
+        "retries": 5
+      },
+      "image": "redis:7-alpine",
+      "networks": {
+        "default": null
+      },
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 6379,
+          "published": "6379",
+          "protocol": "tcp"
+        }
+      ]
+    }
+  },
+  "x-parceira": {
+    "build": {
+      "args": {
+        "CMD": "partner-mock"
+      },
+      "context": "."
+    },
+    "healthcheck": {
+      "interval": "5s",
+      "retries": 5,
+      "test": [
+        "CMD",
+        "wget",
+        "-qO-",
+        "http://127.0.0.1:8080/healthz"
+      ],
+      "timeout": "3s"
+    },
+    "restart": "unless-stopped"
+  }
+}

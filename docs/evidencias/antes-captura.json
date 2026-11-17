@@ -1,0 +1,73 @@
+{
+  "capturedUtc": "2026-11-17T21:23:17.3887986+00:00",
+  "query": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name=\"quotation-api\",http_request_method=\"POST\",http_route=\"/quotes\"}[1m])))",
+  "queryUrl": "http://127.0.0.1:9090/api/v1/query_range?query=histogram_quantile%280.95%2C%20sum%20by%20%28le%29%20%28rate%28http_server_request_duration_seconds_bucket%7Bservice_name%3D%22quotation-api%22%2Chttp_request_method%3D%22POST%22%2Chttp_route%3D%22%2Fquotes%22%7D%5B1m%5D%29%29%29&start=1794950431&end=1794950510&step=5",
+  "windowStartUtc": "2026-11-17T21:20:31.0000000+00:00",
+  "windowEndUtc": "2026-11-17T21:21:50.0000000+00:00",
+  "stepSeconds": 5,
+  "rateWindow": "1m",
+  "yAxisSeconds": [
+    0,
+    10
+  ],
+  "totalTraces": 210,
+  "http200": 125,
+  "http502": 85,
+  "baselineStartUtc": "2026-11-17T21:20:46.2840000+00:00",
+  "loadStartUtc": "2026-11-17T21:21:05.0480000+00:00",
+  "loadEndUtc": "2026-11-17T21:21:29.8550000+00:00",
+  "maxPrometheusP95Seconds": 9.702178092655949,
+  "inspectedTraces": [
+    {
+      "artifact": "antes-trace-lento.json",
+      "traceId": "47f8c1a200576948664cbce2c2b8ecc5",
+      "serverStatus": 200,
+      "serverDurationMs": 8049.881,
+      "calls": [
+        {
+          "partner": "partner-slow",
+          "startMs": 0.067,
+          "durationMs": 1699.726,
+          "gapAfterPreviousMs": null,
+          "status": 200
+        },
+        {
+          "partner": "partner-flaky",
+          "startMs": 1699.85,
+          "durationMs": 200.977,
+          "gapAfterPreviousMs": 0.057,
+          "status": 200
+        },
+        {
+          "partner": "partner-degrading",
+          "startMs": 1900.857,
+          "durationMs": 6148.984,
+          "gapAfterPreviousMs": 0.03,
+          "status": 200
+        }
+      ]
+    },
+    {
+      "artifact": "antes-trace-erro.json",
+      "traceId": "b090e0b0cf0fe47a2d653775cfd1f486",
+      "serverStatus": 502,
+      "serverDurationMs": 1666.985,
+      "calls": [
+        {
+          "partner": "partner-slow",
+          "startMs": 0.069,
+          "durationMs": 1507.596,
+          "gapAfterPreviousMs": null,
+          "status": 200
+        },
+        {
+          "partner": "partner-flaky",
+          "startMs": 1507.691,
+          "durationMs": 159.245,
+          "gapAfterPreviousMs": 0.026,
+          "status": 503
+        }
+      ]
+    }
+  ]
+}
