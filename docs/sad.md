@@ -1,8 +1,8 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.11 | 22/11/2026**
+**Solution Architecture Document | versão 0.12 | 22/11/2026**
 
-**Estado:** as oito seções estão elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Hospedagem, operação e recuperação de produção estão projetadas, não provisionadas ou homologadas. O TCO é um orçamento condicional com preços hipotéticos, não cotação ou economia realizada. A arquitetura de produção está **parcialmente implementada**; organização e revisão final da entrega ainda não são declaradas concluídas.
+**Estado:** as oito seções estão elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Hospedagem, operação e recuperação de produção estão projetadas, não provisionadas ou homologadas. O TCO é um orçamento condicional com preços hipotéticos, não cotação ou economia realizada. A arquitetura de produção está **parcialmente implementada**; o README do processo e os entregáveis estão organizados, mas a revisão final e a publicação da entrega permanecem pendentes.
 
 ## 1. Introdução
 
@@ -16,7 +16,7 @@ Este SAD orienta a extensão da API existente na fronteira com as parceiras. Par
 
 | Referência | Fonte verificável | Uso neste documento |
 | --- | --- | --- |
-| F-01 | [Enunciado atual na raiz](../README.md), especialmente “As regras não negociáveis” e “O cenário: negócio, custo e regulação” | Restrições, valores comerciais e obrigações regulatórias do cenário |
+| F-01 | [Enunciado original preservado](enunciado.md), especialmente “As regras não negociáveis” e “O cenário: negócio, custo e regulação” | Restrições, valores comerciais e obrigações regulatórias do cenário |
 | F-02 | [Guia das oito seções](guia-sad.md) | Estrutura e critérios do SAD |
 | F-03 | `docker-compose.yml`, `internal\partner\client.go`, `internal\quotation\service.go`, `internal\quotation\handler.go` e `internal\quotation\request.go`, a partir da raiz | Topologia e contrato atuais |
 | F-04 | [Índice das evidências próprias](evidencias/README.md) e [saída completa do reproduce](evidencias/antes-reproduce.txt) | Baseline medido em 17/11/2026 |
@@ -28,7 +28,7 @@ Este SAD orienta a extensão da API existente na fronteira com as parceiras. Par
 
 **Existente** significa conferido no código ou na configuração. **Medido** significa obtido nas execuções F-04 ou F-09, não copiado de exemplos do enunciado. **Pressuposto** é hipótese com consequência explícita na seção 1.5. **Proposto** é requisito ou desenho para implementação futura. As obrigações atribuídas a SUSEP e LGPD são as premissas fornecidas por F-01 para este exercício, não uma certificação jurídica independente.
 
-O enunciado ainda está no README da raiz; sua futura organização em outro documento não é apresentada como arquivo já existente.
+O [README da raiz](../README.md) descreve o processo e a versão entregue; o enunciado em F-01 preserva a descrição do baseline, não o estado atual do PoC.
 
 ### 1.3 Escopo e fronteiras
 
