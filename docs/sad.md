@@ -1,8 +1,8 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.10 | 22/11/2026**
+**Solution Architecture Document | versão 0.11 | 22/11/2026**
 
-**Estado:** seções 1 a 7 elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Hospedagem, operação e recuperação de produção estão projetadas, não provisionadas ou homologadas. A seção 8 permanece pendente. A arquitetura de produção está **parcialmente implementada**; este documento parcial não declara o desafio concluído.
+**Estado:** as oito seções estão elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Hospedagem, operação e recuperação de produção estão projetadas, não provisionadas ou homologadas. O TCO é um orçamento condicional com preços hipotéticos, não cotação ou economia realizada. A arquitetura de produção está **parcialmente implementada**; organização e revisão final da entrega ainda não são declaradas concluídas.
 
 ## 1. Introdução
 
@@ -34,7 +34,7 @@ O enunciado ainda está no README da raiz; sua futura organização em outro doc
 
 O PoC implementado cobre timeout e circuit breaker na chamada às parceiras, cache Redis segregado por corretora, fallback explícito no contrato e instrumentação de negócio sobre OpenTelemetry. A seção 2 mostra essa mudança sem criar novos contêineres. O mapa detalhado e os parâmetros foram decididos na seção 4, antes da implementação.
 
-As seções 5 a 7 projetam hospedagem, auditoria imutável, operação e recuperação; o TCO ainda será concluído na seção 8. **Projetar auditoria não significa persistir registros no PoC**: cache efêmero e traces não cumprem retenção regulatória.
+As seções 5 a 7 projetam hospedagem, auditoria imutável, operação e recuperação; a seção 8 estima seu TCO e as condições de viabilidade. **Projetar auditoria não significa persistir registros no PoC**: cache efêmero e traces não cumprem retenção regulatória.
 
 Não fazem parte da implementação: motores das seguradoras, integrações reais, interface do corretor, cadastro, cobrança, relatórios comerciais, persistência de auditoria, retry, bulkhead, rate limiting, filas, autenticação ou Kubernetes. Não serão resolvidas transações entre cache e parceira nem coordenação distribuída de breakers. A agregação paralela é bônus opcional, não premissa para cumprir os requisitos desta versão. Essas exclusões vêm de F-01 e estão relacionadas aos limites operacionais da seção 4.7.
 
@@ -65,7 +65,7 @@ As hipóteses abaixo não são medições de produção. Precisam ser validadas 
 | P-03 | O objetivo inicial de experiência é p95 de até **4 s** sob a carga padrão; a ambição de melhoria é reduzir aproximadamente pela metade os **8,01 s** medidos | Meta de engenharia proposta a partir de F-04, não pesquisa com usuários nem SLA contratual. O melhor caso sequencial observado foi 2,03 s de p95, portanto o alvo não exige paralelizar. Validar com produto e com a execução do depois | Se o negócio exigir menos que a soma saudável das parceiras em cache miss, proteção e cache podem não bastar. Rever escopo e decisões; não afirmar que o bônus de paralelização foi implementado |
 | P-04 | A prova local usa **uma réplica da API, dois tenants permitidos e três parceiras** | Topologia e `TENANTS` de F-03; hipótese de representatividade limitada ao PoC, não descrição da escala de produção. Validar separadamente qualquer expansão | Com mais réplicas, breakers locais aprendem falhas separadamente; com mais tenants, há disputa de capacidade. A seção 7 e os custos da seção 8 não podem extrapolar os resultados linearmente |
 
-Para P-01, a unidade é a oportunidade de consulta por parceira, não a cotação agregada. Com o cache por parceira da seção 4.3, as frações elegíveis de 20% e 40% sustentam cenários condicionais de hit rate de até 20% e 40%, sem expulsão nem perda do Redis. O limite de 300 s começa antes do envio HTTP e não se renova no hit; o prazo útil após a resposta é menor. Falhas de preenchimento, validade restante e expiração podem reduzir o acerto. A seção 8 deverá explicitar essas perdas ou tratar esses números como limites de cenários, nunca como medição de produção.
+Para P-01, a unidade é a oportunidade de consulta por parceira, não a cotação agregada. Com o cache por parceira da seção 4.3, as frações elegíveis de 20% e 40% sustentam cenários condicionais de hit rate de até 20% e 40%, sem expulsão nem perda do Redis. O limite de 300 s começa antes do envio HTTP e não se renova no hit; o prazo útil após a resposta é menor. Falhas de preenchimento, validade restante e expiração podem reduzir o acerto. A seção 8 trata esses números como limites condicionais e testa perdas de efetividade, nunca como medição de produção.
 
 A carga sintética repete cinco riscos em 210 requisições. Seu hit rate medido serve para provar aquecimento e instrumentação, **não para substituir P-01** ou sustentar projeções próximas de 98% em produção.
 
@@ -73,7 +73,7 @@ A carga sintética repete cinco riscos em 210 requisições. Seu hit rate medido
 
 F-01 fixa R$ 0,04 por consulta a uma parceira, três consultas potenciais por cotação, 120.000 cotações por dia útil, 22 dias úteis por mês e R$ 0,25 por cotação entregue. Como cenário de referência de **fan-out completo e zero cache**, isso representa 2.640.000 cotações/mês, 7.920.000 consultas/mês e R$ 316.800/mês de consultas, contra R$ 660.000 de receita se todas forem entregues e cobradas.
 
-Essa referência não é uma extrapolação contábil do baseline: o código atual aborta antes da terceira chamada quando a segunda falha. A seção 8 precisará distinguir consultas potenciais de efetivamente compradas, sucesso técnico de entrega comercial e auditoria por cotação apresentada de consultas evitadas. A seção 3 exige preservar exatamente essas distinções.
+Essa referência não é uma extrapolação contábil do baseline: o código do baseline abortava antes da terceira chamada quando a segunda falhava. A seção 8 distingue consultas potenciais de efetivamente compradas, sucesso técnico de entrega comercial e auditoria por cotação apresentada de consultas evitadas. A seção 3 exige preservar exatamente essas distinções.
 
 ## 2. Visão geral da arquitetura
 
@@ -163,7 +163,7 @@ flowchart LR
     operator -->|"Estado, hit/miss e latencia - HTTP/PromQL :9090"| prometheus
 ```
 
-A auditoria durável de produção **não está representada como contêiner entregue**. Seu armazenamento, residência e imutabilidade são projetados na seção 5 para atender RF-10 e RNF-06; recuperação está projetada na seção 7 e dimensionamento financeiro permanece para a seção 8. Jaeger, Prometheus e Redis não a substituem.
+A auditoria durável de produção **não está representada como contêiner entregue**. Seu armazenamento, residência e imutabilidade são projetados na seção 5 para atender RF-10 e RNF-06; recuperação está projetada na seção 7 e dimensionamento financeiro na seção 8. Jaeger, Prometheus e Redis não a substituem.
 
 ### 2.4 Delta proposto e destinatários
 
@@ -196,7 +196,7 @@ Nos requisitos abaixo, “existente” é comportamento a preservar; “novo” 
 | RF-07 | Bloquear chamadas externas abrangidas por um circuito aberto; tornar verificáveis fechado, aberto e meio aberto e limitar espera por timeout conforme parâmetros previamente defendidos | **Implementado**: `internal\partner\client.go`; `internal\partner\resilience_test.go` prova estados, timeout e zero chamadas em aberto com relógio virtual; `cmd\quotation-api\main_test.go` prova ligação do breaker configurado ao boot |
 | RF-08 | Ao ocorrer falha, timeout ou curto-circuito, devolver o resultado de negócio definido na seção 4 com degradação identificável pelo consumidor; se apresentar cache anterior, informar origem e idade; se apresentar resposta parcial, identificar ausentes; se recusar, devolver erro de negócio distinguível e orientação | **Implementado** no serviço com cache e handler: parcial 200, ausentes/motivos, origem/idade e recusa 503 `no_valid_quotes` com orientação. Testes determinísticos e integração do boot verificam o contrato; o baseline 502 não descreve a API atual |
 | RF-09 | Expor sinais observáveis de estado/transição do breaker, hit/miss de cache e latência por parceira, e marcar no trace resposta de cache e requisição curto-circuitada | **Implementado**: Counters de transições/lookups, histograma HTTP reutilizado e eventos de cache/curto-circuito. Testes e exportações reais do Prometheus/Jaeger na seção 4.6; sem dados pessoais nem novos rótulos ilimitados |
-| RF-10 | Para cada cotação efetivamente apresentada, permitir reconstruir seguradora, prêmio, corretora e instante, ligando cache/fallback à consulta original, e prever registro durável imutável | **Produção proposta**, obrigação F-01; mecanismo e recuperação projetados nas seções 5 e 7, custo pendente na seção 8. Aceite por desenho e dimensionamento; persistência regulatória não é alegada como entregue pelo PoC |
+| RF-10 | Para cada cotação efetivamente apresentada, permitir reconstruir seguradora, prêmio, corretora e instante, ligando cache/fallback à consulta original, e prever registro durável imutável | **Produção proposta**, obrigação F-01; mecanismo, recuperação e custo projetados nas seções 5, 7 e 8. Aceite por desenho e dimensionamento; persistência regulatória não é alegada como entregue pelo PoC |
 
 RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção e estão implementados nesta etapa. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
 
@@ -549,7 +549,7 @@ A suíte original permanece. `NewClient`/`NewService` conservam o caminho básic
 
 A carga auxiliar pode variar o número de riscos/concorrência via argumentos já oferecidos pelo loadgen, sem editar seu código. Não há garantia de que o cache aquecido na execução padrão permita observar todas as transições. O ambiente e seus contadores precisam de reset para uma prova auxiliar reproduzível, mas só depois de exportar as evidências da execução padrão.
 
-Ficam **apenas como propostas de produção**: auditoria imutável e seus cinco anos de retenção, autenticação, coordenação entre réplicas, controles de capacidade, hospedagem resiliente e recuperação de região. As seções 5 a 7 registram hospedagem, alertas/runbook e RTO/RPO; a seção 8 ainda definirá custos/pessoal. Nenhuma dessas extensões será implementada para compensar os limites da seção 4.7.
+Ficam **apenas como propostas de produção**: auditoria imutável e seus cinco anos de retenção, autenticação, coordenação entre réplicas, controles de capacidade, hospedagem resiliente e recuperação de região. As seções 5 a 7 registram hospedagem, alertas/runbook e RTO/RPO; a seção 8 estima custos/pessoal. Nenhuma dessas extensões será implementada para compensar os limites da seção 4.7.
 
 ## 5. Implementação
 
@@ -622,7 +622,7 @@ Sem confirmação durável, a produção proposta deve recusar a apresentação 
 
 **Consequências negativas e revisão.** Há dependência do provedor/região, custo acumulado do acervo que cache não reduz, cobrança por operação/retrieval/saída e necessidade de capacitação/plantão. Bloqueio imutável dificulta corrigir excesso de dados pessoais: corrigir por novo registro minimizado, nunca regravar o original; prevenir excesso antes da gravação. A política de residência condiciona os destinos de recuperação da seção 7. A proposta deve ser revista se contratos exigirem outra localização ou se nenhum fornecedor comprovar retenção/cópias/acesso compatíveis; nesse caso reabrir D-04, não usar região estrangeira por preço.
 
-**Entradas financeiras para a seção 8.** Contabilizar as três unidades de compute acima, memória Redis descartável, disco/ingestão da seção 6.4, rede/ingresso/saída, chaves, armazenamento WORM e operações **por apresentação**, cópias/recuperação e pessoal. Como hipótese interna, API e Redis a R$ 0,60/h cada × 730 h somam R$ 876/mês; com os R$ 936 de compute/disco de telemetria de 6.4, o subtotal é **R$ 1.812/mês**, ou R$ 2.174,40 com contingência de 20%. Isso exclui auditoria, demais discos, rede, redundância e pessoal, portanto **não é TCO nem aprovação financeira**. Não há cotação comercial nem economia líquida aprovada; são preços hipotéticos, não tabela oficial de fornecedor. O TCO completo e o crescimento do acervo nos anos 1/5 permanecem pendentes, sem gasto autorizado.
+**Entradas financeiras para a seção 8.** Contabilizar as três unidades de compute acima, memória Redis descartável, disco/ingestão da seção 6.4, rede/ingresso/saída, chaves, armazenamento WORM e operações **por apresentação**, cópias/recuperação e pessoal. Como hipótese interna, API e Redis a R$ 0,60/h cada × 730 h somam R$ 876/mês; com os R$ 936 de compute/disco de telemetria de 6.4, o subtotal é **R$ 1.812/mês**, ou R$ 2.174,40 com contingência de 20%. Isso exclui auditoria, demais discos, rede, redundância e pessoal, portanto **não é TCO nem aprovação financeira**. Não há cotação comercial nem economia líquida aprovada; são preços hipotéticos, não tabela oficial de fornecedor. A seção 8 completa o orçamento e o crescimento do acervo nos anos 1/5, sem autorizar gasto.
 
 **Portões de entrada em produção:** contrato de localização/subprocessadores e descarte aprovado por controladora/encarregado; autorização real do tenant; isolamento/TLS/chaves; auditoria confirmada e teste de bloqueio/recuperação; alertas/retentores implantados; decisão de DR/TCO e capacidade validadas. Nenhum desses portões é satisfeito apenas por `make reproduce`.
 
@@ -792,7 +792,7 @@ Na proposta de traces, o SDK continua gerando os spans; sampling no Collector re
 
 **Hipóteses de capacidade, não medições.** Para 2.640.000 requisições/mês, admitir até 8 spans/requisição e 1 KiB/span: cerca de 20,14 GiB/mês a 100%, ou 2,01 GiB/mês a 10% **antes** do acréscimo por erros/lentos e índices. Reservar 50 GiB de traces cobre variação/índices, não garante qualquer volume. Para métricas, limite inicial de 2.000 séries ativas, scrape 15 s e 16 bytes/amostra implica aproximadamente 2,57 GiB em 15 dias antes de índices/WAL; reservar 20 GiB. Logs a 500 bytes/requisição resultam em 1,23 GiB/mês antes de índices/infra; reservar 20 GiB. Somar 10 GiB de folga operacional: **100 GiB de disco de telemetria**. Validar bytes reais e bursts na homologação; limite de séries deve alertar, não truncar silenciosamente labels de negócio.
 
-**Reserva financeira de planejamento para 8:** nó de observabilidade de 4 vCPU/8 GiB a **R$ 1,20/h × 730 h = R$ 876/mês**, mais **100 GiB × R$ 0,60/GiB-mês = R$ 60/mês**; subtotal R$ 936, contingência 20% R$ 187,20, reserva arredondada **R$ 1.125/mês**. São preços unitários internos **hipotéticos**, não pesquisa/tabela de provedor nem gasto realizado. Não duplicar esse nó no TCO. Rede, cópias, licenças opcionais, impostos e pessoal serão somados separadamente na seção 8; os R$ 1.125 não são TCO total nem custo de auditoria.
+**Reserva financeira de planejamento para 8:** nó de observabilidade de 4 vCPU/8 GiB a **R$ 1,20/h × 730 h = R$ 876/mês**, mais **100 GiB × R$ 0,60/GiB-mês = R$ 60/mês**; subtotal R$ 936, contingência 20% R$ 187,20, reserva arredondada **R$ 1.125/mês**. São preços unitários internos **hipotéticos**, não pesquisa/tabela de provedor nem gasto realizado. Não duplicar esse nó no TCO. Rede, cópias e pessoal são discriminados na seção 8, que trata preços unitários como desembolsos com tributos de fatura incluídos; licenças opcionais não foram contratadas. Os R$ 1.125 não são TCO total nem custo de auditoria.
 
 Plataforma e finanças estabelecem teto inicial de **R$ 1.200/mês para esse compute/disco**: aviso em 80% (R$ 960 projetados), revisão obrigatória ao atingir 100%; teto não derruba API nem apaga auditoria. Para armazenamento, avisar a 70%/agir a 85% de cada quota, e para cardinalidade avisar acima de 1.600 séries/agir em 2.000. Essas verificações de consumo/faturamento são controles propostos adicionais, não métricas de negócio ou alertas já implantados. Primeiro restringir captura temporária e atributos indevidos; depois ajustar sampling/retenção operacional com aprovação e anotar perda diagnóstica, ou aprovar expansão de capacidade. Aplicação mantém export assíncrono sem dependência de disponibilidade do backend; falha de telemetria requer A-05/investigação, não falha intencional da cotação. Nenhum limite autoriza reduzir os cinco anos de auditoria.
 
@@ -898,8 +898,227 @@ O objetivo de 4 h exige copiar/verificar o acervo real até o ano 5 no orçament
 
 Guardar relatório assinado com início/fim, responsáveis, versão/digest, dependências, volume, atraso de cópias, validações e custo observado, sem publicar payload ou segredos. RTO termina com a prova funcional, não em `container healthy`; falha de qualquer critério gera ação com dono e novo ensaio. Atraso de cópia/auditoria e checagem externa requerem sinais/routing novos antes de produção, não são cobertos magicamente pelos cinco alertas atuais.
 
-As provas existentes de [Redis/validade/boot](evidencias/202611221600-make-test.txt), [trace bloqueado](evidencias/depois-trace-breaker.json) e [recuperação auxiliar](evidencias/auxiliar-trace-recuperacao.json) sustentam os mecanismos locais descritos nas seções 4/5. **Não são atas dos ensaios acima nem comprovação dos RTO/RPO propostos.** A seção 8 deverá fechar o custo de manter e exercitar esta proteção; nenhuma meta se torna SLA só por constar nesta versão.
+As provas existentes de [Redis/validade/boot](evidencias/202611221600-make-test.txt), [trace bloqueado](evidencias/depois-trace-breaker.json) e [recuperação auxiliar](evidencias/auxiliar-trace-recuperacao.json) sustentam os mecanismos locais descritos nas seções 4/5. **Não são atas dos ensaios acima nem comprovação dos RTO/RPO propostos.** A seção 8 estima o custo de manter e exercitar esta proteção; nenhuma meta se torna SLA só por constar nesta versão.
 
 ## 8. Tecnologias, custos e pessoal (TCO)
 
-**Pendente.** Calcular consultas por cenário de hit rate coerente com P-01 e a seção 4.3; infraestrutura, pessoal, auditoria nos anos 1 e 5 e payback. Os valores de referência das seções 1.6 e 4.3 não são veredito de viabilidade nem economia realizada.
+### 8.1 Base de cálculo, fontes e limites
+
+**Orçamento de planejamento em reais constantes de 22/11/2026, não proposta comercial.** Só os parâmetros comerciais abaixo vêm de F-01. Preços de infraestrutura e de trabalho são **hipóteses internas fictícias, com unidade explícita**, adotadas para testar viabilidade enquanto D-04 não seleciona fornecedor. Precisam ser substituídos por cotações brasileiras compatíveis com residência/WORM, quotas e encargos antes de aprovar investimento. Nada foi provisionado, contratado ou faturado por esta conta.
+
+| Entrada | Valor usado / origem | Condição de uso |
+| --- | --- | --- |
+| Volume comercial | 120.000 cotações/dia útil × 22 dias = **2.640.000 requisições/mês**; F-01/1.6 | Volume constante por 60 meses; não inferido da vazão de F-09 |
+| Parceiras e cobrança | Três oportunidades por requisição, **R$ 0,04/HTTP comprado** e **R$ 0,25/entrega cobrada**; F-01 | Referência de 7.920.000 oportunidades e receita máxima R$ 660.000/mês. Sem crédito presumido por erros; validar regra de faturamento |
+| Reúso | h=0%, 20% e 40%; P-01 e D-02 | 20%/40% são limites condicionais de repetição elegível em até 300 s, mesma corretora/parceira/risco, sem expiração/erro/expulsão que reduza o acerto. Testar também efetividade menor |
+| Preços de compute/disco | R$ 0,60/h por 2 vCPU/4 GiB; R$ 1,20/h por 4 vCPU/8 GiB; 730 h/mês; R$ 0,60/GiB-mês de disco; hipóteses de 5.3/6.4 | São desembolsos unitários hipotéticos com tributos de fatura incluídos, não preços de Azure/AWS ou outro provedor |
+| Objetos e operações | **R$ 0,20/GiB-mês**, **R$ 0,03/1.000 PUT**, **R$ 0,004/1.000 GET**; hipótese interna nova | Armazenamento elegível para WORM, sem tarifa extra de retenção, mínimo por objeto ou arredondamento de tamanho nesta simulação. Cotação com essas cobranças exige recálculo |
+| Rede, chaves e ingresso | R$ 0,12/GiB transferido; R$ 20/chave-mês; R$ 0,20/10.000 operações de chave; R$ 100/serviço-mês de ingresso, DNS ou monitor externo; hipóteses internas | Incluir ambos os sites e chamadas por apresentação; não confundir com recurso já entregue |
+| Auditoria e entrega | Para orçamento conservador, d=100% de entregas e q=3 propostas por entrega; **1 KiB por proposta apresentada**, duas cópias e **20%** de índice/manifesto/metadados | Registro individual por ocorrência apresentada, inclusive cache/fallback. Tamanho não medido: auditar schema e tamanho efetivo do fornecedor antes do go-live |
+| Trabalho e contingência | Taxas de custo total/hora em 8.5; 160 h por FTE-mês; contingência **20%** sobre investimento e OpEx não parceiro | Taxas incluem encargos/equipamentos; não são salários de pessoas reais nem cotação de consultoria. Não aplicar novamente os arredondados R$ 1.125 de 6.4 |
+
+O preço comercial não equivale a lucro líquido: tributos sobre receita, aquisição de clientes, custos corporativos, financiamento e inflação não foram modelados. Este é o TCO da **plataforma e sua evolução**, sem esses itens empresariais. Não há ganho de receita atribuído à mudança: a comparação financeira mantém a mesma entrega cobrável, até a validação de P-02. As taxas hipotéticas all-in não constituem parecer fiscal; se uma cotação vier sem tributos, adicioná-los antes de recalcular.
+
+### 8.2 Consultas compradas, economia e sensibilidade do cache
+
+Para `N=2.640.000`, definir `O=3N` oportunidades, `H` hits efetivos, `B` oportunidades sem hit que não executaram HTTP e `h=H/O`. Então `consultas_compradas = O − H − B` e `custo_parceiras = R$ 0,04 × consultas_compradas`. `B` inclui curto-circuitos e outras saídas antes do envio; uma falha depois do envio ainda pode ser cobrada. Não descontar hits e bloqueios duas vezes. Para a comparação de cache abaixo, fixar **B=0**, para não chamar recusa de serviço de economia.
+
+| Cenário comparável de fan-out completo | h efetivo | HTTP comprados/mês | Custo/mês | Economia bruta/mês vs zero cache | Custo / R$ 660.000 de receita |
+| --- | --- | --- | --- | --- | --- |
+| Hoje / referência sem cache | 0% | 7.920.000 | R$ 316.800,00 | R$ 0,00 | 48,0% |
+| P-01 conservador, se sustentado em 300 s | 20% | 6.336.000 | R$ 253.440,00 | R$ 63.360,00 | 38,4% |
+| P-01 favorável, se sustentado em 300 s | 40% | 4.752.000 | R$ 190.080,00 | R$ 126.720,00 | 28,8% |
+
+“Hoje” é a referência aritmética fornecida, **não fatura medida**: o baseline tudo-ou-nada não chamava sempre a terceira parceira. O ganho de 60% para 100% de sucesso na curta carga local não permite faturar automaticamente R$ 660.000 em produção. Se cada parceira tiver hit rate diferente, usar `N × soma(1−h_por_parceira)`, não média sem ponderação ou probabilidade de as três estarem simultaneamente em cache.
+
+O cache implementado é **por parceira**, não de resposta agregada: cada hit evita uma consulta, não três. h usa hits sobre **todas** as oportunidades, inclusive erros Redis; os 93,66% de hit rate sem erros e 89,05% sobre oportunidades de F-09 não entram como previsão econômica. Os cinco riscos sintéticos não justificam h próximo de 98%. Se apenas 90% da repetição elegível de P-01 virar hit efetivo, h cai para **18%/36%**; se P-01 não se confirmar, recalcular abaixo sem ampliar TTL para melhorar planilha.
+
+### 8.3 Auditoria por proposta apresentada e crescimento do acervo
+
+Uma entrega HTTP com três propostas produz **três registros de apresentação**, ainda que todos sejam cache hits; uma parcial com duas produz dois. A receita de R$ 0,25 continua por entrega, não vira R$ 0,75. A fórmula é `E=N × d × q`; com d=1 e q=3, são **7.920.000 registros lógicos/mês**, 95.040.000/ano e 475.200.000 em cinco anos. A igualdade inicial entre E e oportunidades de HTTP é coincidência do fan-out completo: com h=40%, continuam 7.920.000 apresentações/mês, embora só 4.752.000 HTTP sejam comprados. Nenhum registro é eliminado por ter vindo de cache/fallback.
+
+Cada registro proposto de 1 KiB inclui tenant autorizado, seguradora/prêmio/identificador original, instante de apresentação, origem e referência rastreável à consulta. Não duplicar CPF/placa sem necessidade aprovada; hash/referência não é anonimização automática. Duas cópias WORM antes da apresentação mantêm o RPO de 7.5. Reservar 20% de bytes para índices/manifestos; dimensionar também sua recuperação, não apenas o objeto de negócio.
+
+Com `m` meses desde uma base vazia, até 60 meses, usar `GiB_uma_cópia(m)=E × m × 1.024 / 2^30` e `GiB_faturados(m)=GiB_uma_cópia(m) × 2 × 1,20`. Para operações, assumir por proposta **um PUT de registro e um PUT de manifesto append-only em cada cópia**: 4E = 31.680.000 PUT/mês. Consulta amostral de 1% das apresentações, com dois GET por consulta, resulta em 158.400 GET/mês. Não regravar manifesto imutável; são entradas novas, não um índice mutável apresentado como WORM.
+
+| Medida, com d=1 e q=3 | Fim do ano 1 / mês 12 | Fim do ano 5 / mês 60 |
+| --- | --- | --- |
+| Registros lógicos acumulados | 95.040.000 | 475.200.000 |
+| Dados de uma cópia, sem os 20% | 90,64 GiB | 453,19 GiB |
+| Duas cópias, com os 20% | 217,53 GiB | 1.087,65 GiB |
+| Armazenamento no mês de fechamento | R$ 43,51 | R$ 217,53 |
+| PUT normais no mês, ambas as cópias | R$ 950,40 | R$ 950,40 |
+| GET amostrais no mês | R$ 0,63 | R$ 0,63 |
+| **Auditoria normal / mês de fechamento** | **R$ 994,54** | **R$ 1.168,56** |
+| **Auditoria normal / ano inteiro** | **R$ 11.695,19** | **R$ 13.783,47** |
+
+O ano inteiro soma os meses **1–12** ou **49–60**, não doze vezes o saldo final: o armazenamento cresce a cada mês. Este orçamento cobra o saldo do fim de cada mês, conservador frente à acumulação uniforme ao longo dele. O custo de chaves fica em 8.4 e o de ensaios em 8.6, sem duplicação nestes totais.
+
+Cache é descartável em até 300 s; auditoria não é. Ao completar cinco anos de cada apresentação, descartar segundo política aprovada, inclusive cópias/índices, salvo suspensão legal documentada; a política não é um purge indiscriminado no mês 60. Retenção técnica/contratual deve impedir eliminação precoce sem reter tudo indefinidamente. Após o mês 60, volume estável só estabiliza o acervo se expiração/eliminação de coortes forem realmente executadas. Crescimento, legal hold, mudança de q/d ou tamanho acima de 1 KiB exigem novo orçamento. Nenhuma dessas políticas está implementada no PoC.
+
+### 8.4 Infraestrutura recorrente, sem duplicar telemetria
+
+| Recurso proposto e razão | Quantidade × unidade hipotética | R$/mês |
+| --- | --- | --- |
+| API A + API B em standby | 2 × 2 vCPU/4 GiB × R$ 0,60/h × 730 h; continuidade de 7.5 | 876,00 |
+| Redis A + Redis B vazio em standby | 2 × 2 vCPU/4 GiB × R$ 0,60/h × 730 h; nenhum backup de propostas | 876,00 |
+| Collector/backends de telemetria A | 1 × 4 vCPU/8 GiB × R$ 1,20/h × 730 h; quotas de 6.4 | 876,00 |
+| Dados de telemetria A | 100 GiB × R$ 0,60/GiB-mês; 20 métricas + 50 traces + 20 logs + 10 folga | 60,00 |
+| Discos de sistema dos cinco nós | 5 × 20 GiB × R$ 0,60/GiB-mês; separados do disco de dados acima | 60,00 |
+| Cópia incremental off-site de telemetria | Reserva de 200 GiB × R$ 0,20/GiB-mês; RPOs de 7.1 | 40,00 |
+| Artefatos/configuração recuperáveis | 50 GiB totais × R$ 0,20/GiB-mês; digests/versões nos destinos independentes | 10,00 |
+| Ingresso, DNS e monitor externo | 3 serviços × R$ 100/serviço-mês; acesso e detecção fora de A | 300,00 |
+| Rede normal, inclusive cópias | 300 GiB/mês × R$ 0,12/GiB; ensaios separados em 8.6 | 36,00 |
+| Chaves nos destinos A/B/C | 6 × R$ 20/chave-mês; papéis/acessos separados, C previamente preparado | 120,00 |
+| Operações de chave normais | 2E = 15.840.000/mês × R$ 0,20/10.000; hipótese de envelope por cópia | 316,80 |
+| **Infraestrutura fixa/normal** | **Antes de contingência; auditoria e DR calculados à parte** | **3.570,80** |
+
+O compute soma quatro nós pequenos e um de observabilidade, não mais um Jaeger/Collector pago por processo. SDK/bibliotecas continuam os de `go.mod`; não há licença adicional de Sony/go-redis/OpenTelemetry/stack local neste modelo, mas suporte comercial opcional requer orçamento próprio. Os R$ 936 de compute/disco de dados de 6.4 estão incluídos **uma vez**; aplicar 20% somente ao consolidar, não somar também a reserva arredondada R$ 1.125.
+
+Na média H-DR, 3,33 requisições/s × 3 parceiras × 300 s dão até aproximadamente 3.000 entradas ativas se todos os riscos forem distintos. Envelope estimado de 2 KiB e fator 3 de overhead dão cerca de **17,58 MiB**, não 4 GiB de propostas obrigatórias; a VM Redis de 4 GiB reserva SO, pool, picos e margem. Essa aproximação não certifica capacidade: payload, concorrência, misses, p95 e picos reais precisam do ensaio. Os 2 vCPU da API também não são derivados dos 114,1 req/s de 1,75 s de F-09.
+
+A cópia off-site pressupõe exportação/snapshots **incrementais e consistentes**, não transferir 100 GiB integrais a cada cinco minutos. Medir bytes/atraso e testar os RPOs; 300 GiB/mês de rede não é um limite que autoriza perder auditoria. Backends persistentes, ingressos/identidade e cofre de produção são propostas; não há preços prometidos para um produto específico.
+
+### 8.5 Pessoal, implantação e plantão
+
+Seis papéis/pessoas com alocação parcial em uma janela proposta de **seis semanas**; custo total por hora, não salário nominal. A implantação abaixo é estimativa para **levar a proposta à produção** — inclui configuração segura, auditoria, recuperação, testes e aceite que o PoC deliberadamente não implementa. Não é cobrança retroativa das tarefas nem declaração de que esses componentes já foram entregues.
+
+| Papel / responsabilidade | R$/h total | Horas implantação | Implantação R$ | Horas operação/mês | Operação R$/mês |
+| --- | --- | --- | --- | --- | --- |
+| Arquitetura / decisões, contratos técnicos e aceite | 180,00 | 64 | 11.520,00 | 8 | 1.440,00 |
+| Engenharia Go / integração, origem, autorização e auditoria | 140,00 | 160 | 22.400,00 | 32 | 4.480,00 |
+| Plataforma/SRE / segurança, cópias, alertas, DR e restauração | 160,00 | 120 | 19.200,00 | 40 | 6.400,00 |
+| QA / validade, isolamento, carga e ensaios | 100,00 | 80 | 8.000,00 | 12 | 1.200,00 |
+| Privacidade/segurança / retenção, minimização e acesso | 180,00 | 40 | 7.200,00 | 8 | 1.440,00 |
+| Produto/finanças / aprovação do parcial, TTL e orçamento | 120,00 | 24 | 2.880,00 | 8 | 960,00 |
+| **Total de esforço** | **Hipóteses internas, sem pesquisa salarial** | **488 h** | **71.200,00** | **108 h** | **15.920,00** |
+
+488 h correspondem a **3,05 FTE-mês** ou aproximadamente 2,03 pessoas integrais ao longo de seis semanas de 40 h; seis especialistas parciais não são seis FTEs. Em operação, 108 h/mês são 0,675 FTE e incluem manutenção/incidentes esperados/ensaios, sem cobrar essas mesmas horas de novo em 8.6.
+
+Acrescentar **R$ 4.000/mês de disponibilidade de plantão compartilhado**, além das horas, totalizando **R$ 19.920/mês de pessoal**. Pressupõe rodízio contratado/compartilhado com pelo menos quatro profissionais habilitados e substituição; não presume que essa equipe exista, nem que 0,675 FTE cubra sozinho 24×7. Sem rodízio disponível ou com incidentes acima da reserva de horas, reorçar cobertura antes de vender disponibilidade.
+
+Investimento inicial: R$ 71.200 de trabalho + **2 meses × R$ 2.500 de homologação funcional = R$ 5.000**, sem comprar consultas reais + primeiro ensaio integral de DR de **R$ 45.850,82**, calculado em 8.6. Base apresentada a centavos: R$ 122.050,82; contingência de 20%: R$ 24.410,16; **investimento I = R$ 146.460,99**. Calcular com precisão integral e arredondar no fechamento; a soma de parcelas já arredondadas pode diferir um centavo. O ensaio pré-go-live não substitui os quatro trimestrais do primeiro ano operacional.
+
+### 8.6 Exercitar DR também custa operações
+
+Para não esconder o custo de 7.6, cada ensaio trimestral usa uma massa **sintética equivalente ao fim do ano 5**, mesmo no primeiro ano: `S=475.200.000` registros e uma cópia reconstituída com índices `J=453,18603515625 × 1,20 = 543,8232421875 GiB`. Isso é conservador em volume; não é evidência de que o teste caiba no RTO.
+
+| Consumo externo por ensaio completo, sem pessoal já contado | Fórmula com as unidades de 8.1 | R$/ensaio |
+| --- | --- | --- |
+| Recriação de registro + manifesto em uma cópia | 2S PUT × R$ 0,03/1.000 | 28.512,00 |
+| Leitura/verificação na origem e no destino | 4S GET × R$ 0,004/1.000 | 7.603,20 |
+| Operação de chave para a cópia | S operações × R$ 0,20/10.000 | 9.504,00 |
+| Transferência da cópia com índices | J GiB × R$ 0,12/GiB | 65,26 |
+| Armazenamento de homologação | J GiB × R$ 0,20/GiB-mês; reservar mês cheio | 108,76 |
+| Dois sites efêmeros completos por até 12 h | 12 h × 2 × (2 × R$ 0,60/h + R$ 1,20/h) | 57,60 |
+| **Total por ensaio** | **Antes da contingência global** | **45.850,82** |
+| **Reserva recorrente** | **4 ensaios/ano ÷ 12 meses** | **15.283,61/mês** |
+
+A reserva pressupõe homologação sem dados reais: a massa integral pode usar retenção curta de teste, enquanto canários sintéticos pequenos comprovam a política WORM real de cinco anos e continuam retidos (custo residual coberto pela contingência). **Não se abrevia retenção de produção nem se cria uma cópia integral real “temporária” prometendo apagá-la apesar do WORM.** Essa separação permite exercitar volume e bloqueio, com relatórios distintos e sem fingir que um teste curto comprovou cinco anos decorridos. Se o aceite exigir bloquear a massa inteira por cinco anos, somar seu acervo cumulativo antes de aprovar.
+
+O objetivo de copiar/verificar em 150 min exigiria em média **105.600 PUT/s**, **211.200 GET/s** e **52.800 operações de chave/s** nesse modelo de objetos pequenos. As cinco VMs de 8.4 não certificam essas taxas. Confirmar quotas, mecanismo de cópia/verificação, concorrência e eventual serviço adicional com o fornecedor; se não couber, revisar RTO, desenho ou orçamento antes do go-live. Agrupar registros em objetos imutáveis pode alterar custo/tempo, mas não está assumido como otimização entregue, nem autoriza apresentar antes da confirmação durável.
+
+Durante desastre real, custos de C, cópias extras, suporte e consumo acima das reservas precisam de aprovação de incidente e entram no realizado; a contingência não é garantia de cobertura ilimitada. Manter as exposições de 7.2 (cache frio/receita em risco) separadas da despesa regular, sem somá-las como se todo desastre ocorresse mensalmente.
+
+### 8.7 TCO consolidado, veredito e payback
+
+Definir `A(m)` como auditoria normal de 8.3 no mês m e `D=R$ 45.850,8234375/3` como reserva mensal de ensaios. O OpEx não parceiro é `F(m)=1,20 × (3.570,80 + 19.920 + A(m) + D)`. Os 20% são contingência sobre custos não parceiros, inclusive pessoal, não margem sobre as consultas comerciais. Ano 1 começa vazio; ano 5 é o quinto ano operacional, não cinco vezes o primeiro.
+
+| Composição mensal, antes de consultas | Mês 12 | Mês 60 |
+| --- | --- | --- |
+| Infraestrutura normal | R$ 3.570,80 | R$ 3.570,80 |
+| Auditoria normal | R$ 994,54 | R$ 1.168,56 |
+| Pessoal + disponibilidade de plantão | R$ 19.920,00 | R$ 19.920,00 |
+| Ensaios de DR amortizados, sem duplicar pessoal | R$ 15.283,61 | R$ 15.283,61 |
+| Base não parceiro | R$ 39.768,95 | R$ 39.942,97 |
+| Contingência 20% | R$ 7.953,79 | R$ 7.988,59 |
+| **F(m), não parceiro** | **R$ 47.722,74** | **R$ 47.931,56** |
+
+TCO mensal operacional é `316.800 × (1−h) + F(m)`. TCO do primeiro ano é a soma dos meses 1–12 **mais I**, e o quinto ano soma 49–60 sem repetir implantação. Os quatro ensaios trimestrais entram via reserva mensal; aqui são provisão conservadora de caixa/planejamento, não regime contábil fiscal.
+
+| h efetivo / B=0 / mesma entrega cobrável | TCO mensal no mês 12 | TCO anual no ano 1, com I | TCO anual no ano 5 |
+| --- | --- | --- | --- |
+| 0% | R$ 364.522,74 | R$ 4.520.446,69 | R$ 4.376.491,64 |
+| 20% | R$ 301.162,74 | R$ 3.760.126,69 | R$ 3.616.171,64 |
+| 40% | R$ 237.802,74 | R$ 2.999.806,69 | R$ 2.855.851,64 |
+
+Para um teste **conservador do investimento inteiro**, comparar com a referência de R$ 316.800/mês de consultas sem cache e imputar **todo** F(m) à evolução: `benefício_líquido(m)=316.800 × h − F(m)`, mantendo variação de receita igual a zero. Isso não é lucro líquido contábil nem comparação real de duas empresas: uma operação sem cache também precisaria de pessoal, auditoria e compliance. Não há inventário de custo legado que autorize creditar esses itens como economia; o modelo deliberadamente não os desconta.
+
+| h efetivo | Benefício líquido mensal no mês 12 | No mês 60 | Payback simples usando o custo do mês 12 |
+| --- | --- | --- | --- |
+| 0% | −R$ 47.722,74 | −R$ 47.931,56 | Não há |
+| 10% | −R$ 16.042,74 | −R$ 16.251,56 | Não há |
+| 18% (20% elegível × 90% efetivo) | R$ 9.301,26 | R$ 9.092,44 | 15,75 meses |
+| 20% | R$ 15.637,26 | R$ 15.428,44 | 9,37 meses |
+| 36% (40% elegível × 90% efetivo) | R$ 66.325,26 | R$ 66.116,44 | 2,21 meses |
+| 40% | R$ 78.997,26 | R$ 78.788,44 | 1,85 meses |
+
+**Veredito condicional:** sob h=20% sustentado, o pacote proposto paga seu investimento inicial em aproximadamente **9,35 meses operacionais**, somando benefícios mês a mês com crescimento de armazenamento; a 40%, aproximadamente **1,85 meses**. São prazos após o go-live, sem rampa de adoção, juros ou desconto; somar o calendário de implantação. No ano 1, o benefício conservador após I seria **R$ 41.473,31** a h=20% ou **R$ 801.793,31** a h=40%, contra R$ 3.801.600/ano da referência de consultas. Não é economia já obtida pelo PoC.
+
+O equilíbrio recorrente exige h maior que **15,06%** no mês 12 e **15,13%** no mês 60; a 10% não há payback nesse escopo. Perder cinco pontos percentuais de entregas cobráveis significa até **R$ 33.000/mês** a menos de receita: isso supera o benefício líquido de h=20%. Portanto parcialidade só sustenta o caso econômico com P-02/contrato aprovados; não contar 200 técnico como cobrança garantida.
+
+A decisão recomendada é **validar P-01, P-02, preços e quotas antes de contratar**, não ampliar TTL para atingir o equilíbrio nem remover auditoria/DR para maquiar retorno. Cada 1 ponto percentual de h muda a compra de 79.200 consultas e R$ 3.168/mês. Tráfego metade, equipes maiores, retenção legal adicional, tamanho mínimo tarifado por objeto, operações criptográficas extras, custos de cópia ou ausência de plantão compartilhado podem inviabilizar o orçamento. Revisar consumo semanalmente com os donos de 6.4 e após os incidentes de 7; manter a base de faturamento distinta de métricas técnicas.
+
+### 8.8 Recálculo reproduzível, sem serviços externos
+
+O bloco Python 3 abaixo usa apenas biblioteca padrão, não acessa a rede, não grava arquivos e não altera o PoC. Pode ser executado opcionalmente para recalcular, sem torná-lo dependência de build. Valores monetários são arredondados somente na apresentação; mudar as entradas exige revalidar as premissas, não apenas atualizar o resultado.
+
+```python
+from decimal import Decimal as D
+import json
+
+N = D(120000) * 22
+E = N * 3  # d=1, q=3; nao depende de h
+gib = E * 1024 / (D(2) ** 30)
+storage_step = gib * 2 * D("1.20") * D("0.20")
+put = E * 4 / 1000 * D("0.03")
+get = E * D("0.01") * 2 / 1000 * D("0.004")
+infra = (4 * D("0.60") * 730 + D("1.20") * 730
+         + 200 * D("0.60") + 200 * D("0.20") + 50 * D("0.20")
+         + 3 * 100 + 300 * D("0.12") + 6 * 20
+         + E * 2 / 10000 * D("0.20"))
+roles = [(64, 8, 180), (160, 32, 140), (120, 40, 160),
+         (80, 12, 100), (40, 8, 180), (24, 8, 120)]
+implementation = sum(hours * rate for hours, _, rate in roles)
+people = D(sum(hours * rate for _, hours, rate in roles) + 4000)
+S, J = E * 60, gib * 60 * D("1.20")
+drill = (S * 2 / 1000 * D("0.03") + S * 4 / 1000 * D("0.004")
+         + S / 10000 * D("0.20") + J * (D("0.12") + D("0.20"))
+         + 12 * 2 * (2 * D("0.60") + D("1.20")))
+I = (implementation + 5000 + drill) * D("1.20")
+
+def audit(m):
+    return storage_step * min(m, 60) + put + get
+
+def overhead(m):
+    return (infra + people + audit(m) + drill / 3) * D("1.20")
+
+def payback(h):
+    balance = -I
+    for m in range(1, 61):
+        benefit = N * 3 * D("0.04") * h - overhead(m)
+        if benefit > 0 and balance + benefit >= 0:
+            return D(m - 1) - balance / benefit
+        balance += benefit
+    return None  # nao recupera em 60 meses neste modelo
+
+out = {"infra": infra, "people": people, "drill": drill, "investment": I}
+out["audit"] = {m: {"events": E * m, "GiB": gib * m * D("2.40"),
+                   "monthly": audit(m)} for m in (12, 60)}
+out["annual_audit"] = {
+    y: sum(audit(m) for m in range((y - 1) * 12 + 1, y * 12 + 1))
+    for y in (1, 5)}
+out["cases"] = {}
+for h in map(D, ("0", "0.10", "0.18", "0.20", "0.36", "0.40")):
+    partner = N * 3 * (1 - h) * D("0.04")
+    out["cases"][str(h)] = {
+        "partner": partner, "monthly12": partner + overhead(12),
+        "net12": N * 3 * D("0.04") * h - overhead(12),
+        "net60": N * 3 * D("0.04") * h - overhead(60),
+        "year1": 12 * partner + sum(overhead(m) for m in range(1, 13)) + I,
+        "year5": 12 * partner + sum(overhead(m) for m in range(49, 61)),
+        "simple_payback12": I / (N * 3 * D("0.04") * h - overhead(12))
+        if N * 3 * D("0.04") * h > overhead(12) else None,
+        "cumulative_payback": payback(h)}
+print(json.dumps(out, indent=2, default=lambda x: str(round(x, 2))))
+```
