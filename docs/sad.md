@@ -1,8 +1,8 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.3 | 22/11/2026**
+**Solution Architecture Document | versão 0.4 | 22/11/2026**
 
-**Estado:** seções 1 a 4 elaboradas; timeout e circuit breaker de D-01 implementados, com provas determinísticas e integração no boot. Cache, fallback e novos sinais de negócio permanecem propostos; seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino está **parcialmente implementada**, sem medição do depois nem comprovação das metas de carga. Este documento parcial não declara o desafio concluído.
+**Estado:** seções 1 a 4 elaboradas; timeout, circuit breaker e cache isolado de D-01/D-02 implementados, com provas determinísticas e integração no boot. Fallback parcial e novos sinais de negócio permanecem propostos; seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino está **parcialmente implementada**, sem medição do depois nem comprovação das metas de carga. Este documento parcial não declara o desafio concluído.
 
 ## 1. Introdução
 
@@ -51,7 +51,7 @@ Não fazem parte da implementação: motores das seguradoras, integrações reai
 | Prumo operadora, corretora controladora; minimização e descarte | Separar cache descartável de auditoria e excluir CPF, placa e `quote_id` de atributos de spans/métricas |
 | Ambiente local sem conta cloud e sem gasto obrigatório | Executar o PoC localmente; estimativas de produção não autorizam provisionamento |
 
-As decisões de breaker, timeout, cache e fallback estão fixadas na seção 4; somente breaker e timeout estão implementados nesta versão. Não são restrições externas nem aprovações comerciais: são escolhas técnicas revisáveis com evidência, sob os pressupostos da seção 1.5. A hospedagem de produção será decidida na seção 5 por retenção, residência, segregação e custo. Os números de aceitação da seção 3 são metas propostas, não um SLA vendido.
+As decisões de breaker, timeout, cache e fallback estão fixadas na seção 4; breaker, timeout e cache estão implementados nesta versão. Fallback parcial permanece pendente. Não são restrições externas nem aprovações comerciais: são escolhas técnicas revisáveis com evidência, sob os pressupostos da seção 1.5. A hospedagem de produção será decidida na seção 5 por retenção, residência, segregação e custo. Os números de aceitação da seção 3 são metas propostas, não um SLA vendido.
 
 ### 1.5 Pressupostos quantificados
 
@@ -132,7 +132,7 @@ F-04 mostra por que a intervenção se concentra nessa fronteira: no [trace lent
 
 ### 2.3 Contêineres - C4 nível 2 do depois, proposto
 
-**O desenho abaixo representa o destino completo, ainda parcialmente proposto.** Timeout e breaker estão ligados no boot; cache, fallback e novas métricas ainda não. A presença dos contêineres não comprova essas integrações pendentes. A agregação continua sequencial, sem depender do bônus.
+**O desenho abaixo representa o destino completo, ainda parcialmente proposto.** Timeout, breaker e cache estão ligados no boot; fallback parcial e novas métricas ainda não. A presença dos contêineres não comprova as integrações pendentes. A agregação continua sequencial, sem depender do bônus.
 
 ```mermaid
 flowchart LR
@@ -140,8 +140,8 @@ flowchart LR
     operator(["Operacao<br/>Pessoa interna"])
     load["loadgen<br/>Conteiner Go existente - mesma carga de teste"]
     subgraph prumo["Prumo Cota - destino com implementacao parcial"]
-        api["quotation-api<br/>Timeout e breaker implementados<br/>PROPOSTA: cache e fallback"]
-        redis[("redis<br/>Conteiner existente<br/>PROPOSTA: cache isolado por tenant e risco")]
+        api["quotation-api<br/>Timeout, breaker e cache implementados<br/>PROPOSTA: fallback parcial"]
+        redis[("redis<br/>Conteiner existente<br/>Cache isolado por tenant, parceira e risco")]
         collector["otel-collector<br/>Conteiner existente - mesmo pipeline"]
         jaeger["jaeger<br/>Conteiner existente - traces"]
         prometheus["prometheus<br/>Conteiner existente - metricas"]
@@ -151,10 +151,10 @@ flowchart LR
     degrading["partner-degrading<br/>Sistema externo - mock inalterado"]
     broker <-->|"POST /quotes - risco e resultado com degradacao explicita - HTTP/JSON, X-Tenant-Id"| api
     load <-->|"Mesmos pedidos e medicao das respostas - HTTP/JSON, X-Tenant-Id"| api
-    api <-->|"PROPOSTA: leitura e escrita com expiracao - protocolo Redis/RESP :6379"| redis
-    api <-->|"PROPOSTA: consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| slow
-    api <-->|"PROPOSTA: consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| flaky
-    api <-->|"PROPOSTA: consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| degrading
+    api <-->|"Leitura e SET com expiracao absoluta - protocolo Redis/RESP :6379"| redis
+    api <-->|"Consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| slow
+    api <-->|"Consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| flaky
+    api <-->|"Consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| degrading
     api -->|"OTLP/gRPC :4317 - genericos existentes e sinais de negocio propostos"| collector
     collector -->|"Traces - OTLP/gRPC :4317"| jaeger
     prometheus -->|"Scrape de metricas da API e Collector - HTTP :8889 e :8888"| collector
@@ -191,13 +191,13 @@ Nos requisitos abaixo, “existente” é comportamento a preservar; “novo” 
 | RF-03 | Em requisição normal, obter as três propostas, devolver `tenant_id`, `quotes` e `elapsed_ms`, ordenar por `premium_cents` crescente e retornar `X-Tenant-Id` no cabeçalho de sucesso; manter ordenação nos resultados degradados que contenham propostas | Parte normal existente: serviço e handler; extensão degradada proposta. Comparar conteúdo e ordem da resposta com as propostas controladas nos testes |
 | RF-04 | Toda proposta apresentada deve preservar seguradora, identificador e prêmio da resposta original de parceira, inclusive no cache/fallback; nenhum prêmio pode ser calculado pela plataforma | Fonte F-01 e estrutura `partner.Quote` em `internal\partner\client.go`; conferir resposta contra stub de parceira e, futuramente, entrada armazenada e sua origem |
 | RF-05 | Encaminhar a corretora no campo `broker` da consulta à parceira e nunca reutilizar, para uma corretora, a entrada de cache de outra, mesmo para o mesmo risco | Encaminhamento existente em `internal\quotation\service.go`; isolamento de cache novo e obrigatório por F-01. Provar com duas corretoras e respostas distintas |
-| RF-06 | Para risco normalizado e tenant elegíveis, reutilizar proposta rastreável no Redis dentro da validade decidida; em miss, obter dados de parceira conforme a política, sem registrar resposta inválida como cotação válida | **Novo da arquitetura**: cache ainda não integrado; testar hit, miss, expiração e isolamento. Chave literal, granularidade e TTL definidos na seção 4.3 |
+| RF-06 | Para risco normalizado e tenant elegíveis, reutilizar proposta rastreável no Redis dentro da validade decidida; em miss, obter dados de parceira conforme a política, sem registrar resposta inválida como cotação válida | **Implementado**: `internal\quotation\cache.go`, `service.go` e `internal\cache\redis.go`; testes de hit/miss, validade absoluta, entradas incoerentes, isolamento e integração do boot. Chave e TTL conforme seção 4.3 |
 | RF-07 | Bloquear chamadas externas abrangidas por um circuito aberto; tornar verificáveis fechado, aberto e meio aberto e limitar espera por timeout conforme parâmetros previamente defendidos | **Implementado**: `internal\partner\client.go`; `internal\partner\resilience_test.go` prova estados, timeout e zero chamadas em aberto com relógio virtual; `cmd\quotation-api\main_test.go` prova ligação do breaker configurado ao boot |
 | RF-08 | Ao ocorrer falha, timeout ou curto-circuito, devolver o resultado de negócio definido na seção 4 com degradação identificável pelo consumidor; se apresentar cache anterior, informar origem e idade; se apresentar resposta parcial, identificar ausentes; se recusar, devolver erro de negócio distinguível e orientação | **Novo da arquitetura**: hoje falha externa resulta em 502 genérico de parceira. Provar cenários controlados e documentar o contrato escolhido; log sozinho não atende |
 | RF-09 | Expor sinais observáveis de estado/transição do breaker, hit/miss de cache e latência por parceira, e marcar no trace resposta de cache e requisição curto-circuitada | **Novo da arquitetura**: F-06 fornece apenas instrumentação genérica. Conferir emissão real, consulta PromQL e traces; nomes propostos fixados na seção 4.6, ainda sem emissão das novas métricas |
 | RF-10 | Para cada cotação efetivamente apresentada, permitir reconstruir seguradora, prêmio, corretora e instante, ligando cache/fallback à consulta original, e prever registro durável imutável | **Produção proposta**, obrigação F-01; seção 5 deverá projetar o mecanismo, seção 7 a recuperação e seção 8 o custo. Aceite por desenho e dimensionamento; persistência regulatória não é alegada como entregue pelo PoC |
 
-RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção; somente RF-07 está implementado nesta etapa. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
+RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção; RF-06 e RF-07 estão implementados nesta etapa. Origem/idade e indisponibilidade de cache já aparecem no sucesso, mas RF-08 completo depende da resposta parcial e recusa de D-03. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
 
 ### 3.3 Baseline próprio e condições de comparação
 
@@ -249,7 +249,7 @@ A janela absoluta foi `2026-11-17T21:20:31Z` a `2026-11-17T21:21:50Z`, com passo
 
 O SDK exporta métricas a cada 10 s e o Prometheus raspa o Collector a cada 5 s (F-06); a carga é curta e há defasagem entre a requisição e sua observação. Não preencher lacunas como zero. Os arquivos exportados de F-04 permanecem a fonte do antes mesmo após expirar a retenção ou derrubar o Compose.
 
-Ainda não há métricas de breaker/cache implementadas. Os nomes propostos estão na seção 4.6; a implementação deverá emiti-los e a seção 6 associá-los a limiares e ações. Timeout e breaker já possuem provas determinísticas próprias; validade de cache ainda não. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
+Ainda não há métricas de breaker/cache implementadas. Os nomes propostos estão na seção 4.6; a implementação deverá emiti-los e a seção 6 associá-los a limiares e ações. Timeout, breaker e validade de cache possuem provas determinísticas próprias. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
 
 ### 3.6 Rastreabilidade para as próximas seções
 
@@ -261,7 +261,7 @@ Ainda não há métricas de breaker/cache implementadas. Os nomes propostos est�
 
 ## 4. Detalhamento da arquitetura
 
-**D-01 implementada; D-02 e D-03 ainda propostas.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. As provas de D-01 estão na seção 4.8; não há medições de carga do depois. Os parâmetros continuam escolhas defendidas por código do cenário e baseline. Antes de alterá-los durante o PoC, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
+**D-01 e o mecanismo de cache de D-02 implementados; composição parcial de D-03 ainda proposta.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. As provas estão na seção 4.8; não há medições de carga do depois. Os parâmetros continuam escolhas defendidas por código do cenário e baseline. Antes de alterá-los durante o PoC, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
 
 ### 4.1 Sequência de atendimento e orçamento de espera
 
@@ -274,7 +274,7 @@ Manter a ordem configurada das três parceiras, sem paralelizar. Depois de valid
 
 Não há retry, renovação de TTL no hit, busca de preço fabricado nem chamada de atualização em segundo plano. O cancelamento da requisição pelo consumidor encerra o trabalho; não é motivo para continuar comprando consultas.
 
-| Parâmetro decidido | Valor padrão e local de aplicação (Redis ainda futuro) | Justificativa e custo da escolha |
+| Parâmetro decidido | Valor padrão e local de aplicação | Justificativa e custo da escolha |
 | --- | --- | --- |
 | Timeout HTTP da `partner-slow` | **2 s**, no `http.Client.Timeout` usado por essa parceira | F-08 aplica 1.500 ms mais jitter de 0 a menos de 200 ms, não ±200 ms. Há cerca de 300 ms de margem sobre 1.700 ms; o trace próprio de 1.699,726 ms cabe. A margem é orçamento, não p99 de rede medido |
 | Timeout HTTP da `partner-flaky` | **500 ms**, no cliente dessa parceira | F-08 aplica 150 ms mais até 50 ms de jitter; sobra aproximadamente 300 ms para transporte. A falha 503 é sinal imediato, sem esperar o teto |
@@ -287,9 +287,9 @@ O teto de 6.000 ms do cenário limita o **acréscimo** de degradação, não tod
 
 As configurações **implementadas** em `internal\platform\config.go` são `PARTNER_TIMEOUTS="partner-slow=2s,partner-flaky=500ms,partner-degrading=1s"`, `BREAKER_FAILURE_THRESHOLD=3`, `BREAKER_INTERVAL=10s`, `BREAKER_OPEN_TIMEOUT=5s` e `BREAKER_MAX_REQUESTS=1`, também expostas no serviço da API no Compose. Durações e contadores devem ser positivos. A lista de timeouts deve corresponder exatamente aos nomes em `PARTNER_ENDPOINTS`, sem duplicatas: ao personalizar a lista de parceiras, fornecer a lista completa em `PARTNER_TIMEOUTS`. Configuração inválida impede o boot, sem proteção silenciosamente desativada.
 
-**Ainda propostas:** `CACHE_TTL=300s`, `REDIS_OPERATION_TIMEOUT=20ms` e endereço Redis configurável, padrão `redis:6379` no Compose. TTL não poderá exceder 300 s nesta decisão.
+**Cache implementado:** `CACHE_TTL=300s`, `REDIS_OPERATION_TIMEOUT=20ms` e `REDIS_ADDR`, padrão `127.0.0.1:6379` no processo local e `redis:6379` no Compose. TTL deve ser positivo e não pode exceder 300 s; endereço e prazo da operação são validados no boot. O cliente conecta sob demanda: Redis fora do ar não impede a inicialização nem transforma `/healthz` em teste de dependência.
 
-O timeout HTTP cobre conexão e leitura do corpo; a validação da resposta ocorre dentro da execução protegida. Redirecionamentos de consultas de preço não devem ser seguidos: resposta diferente de 200 é falha, sem comprar outra consulta implicitamente. A biblioteca cliente Redis ainda será escolhida na implementação, exigindo prazo total e retries desabilitados.
+O timeout HTTP cobre conexão e leitura do corpo; a validação da resposta ocorre dentro da execução protegida. Redirecionamentos de consultas de preço não são seguidos: resposta diferente de 200 é falha, sem comprar outra consulta implicitamente. O Redis usa `github.com/redis/go-redis/v9` **v9.12.1**, compatível com Go 1.25, RESP2 e `MaxRetries=-1`. Cada GET/SET cria um contexto com prazo total; `ContextTimeoutEnabled=true` e limites de dial/read/write/pool fazem as fases respeitarem esse prazo, inclusive quando o contexto do consumidor vence antes. Não há instrumentação automática Redis que exponha chaves/valores.
 
 ### 4.2 D-01 - Circuit breaker por parceira, com timeout
 
@@ -358,6 +358,10 @@ Gravar valor e prazo em **uma operação SET com expiração**, somente se o pra
 
 Não servir se `agora >= expires_at` ou se a validade inteira restante for menor que 1 s. Verificar também ao compor a resposta: uma proposta pode vencer enquanto outras são consultadas. Nesse caso, removê-la e declarar `expired`, sem nova consulta na mesma requisição. `age_seconds=floor(agora-quoted_at)` informa idade, sem alterar prêmio ou `quote_id`.
 
+**Estado desta etapa:** cache e metadados estão implementados; o descarte individual com composição parcial depende de D-03. Se uma proposta vencer durante a composição, o serviço atualmente recusa a cotação com erro de parceira `expired` (HTTP 502), sem servi-la nem consultá-la novamente. A evolução da implementação preservará as demais propostas e explicitará a ausente. Essa limitação temporária não autoriza stale.
+
+O envelope JSON implementado contém `version`, `tenant_id`, `quote`, `quoted_at` e `expires_at`; `quote.partner` confere a parceira e `quote.valid_for_seconds` conserva a duração **original**, antes de calcular o campo público restante. No caminho HTTP, `partner.Quote.RequestedAt` é capturado imediatamente antes de `http.Client.Do` e não é serializado; a origem fica no envelope. O SET usa **`PXAT`** em milissegundos absolutos, arredondados para baixo, em uma operação com o valor. Assim, atraso de envio não concede vida extra; a precisão Redis pode antecipar a remoção em menos de 1 ms. Entradas de versão/tenant/parceira incoerentes, origem futura, preço inválido ou expiração maior que o prazo permitido viram miss.
+
 Por que 300 s e não 24 h: respeita o sinal técnico que o fornecedor realmente entrega e a hipótese de recotação curta P-01; 24 h é teto, não garantia de atualização. Por que não 60 s: descartaria parte das repetições de até cinco minutos pressupostas em P-01 e exigiria refazer o caso financeiro. **Não foi medido que 300 s seja o ótimo**. Se a parceira devolver validade menor, ela prevalece e os hit rates de P-01 devem ser reduzidos; não aumentar o TTL para preservar a economia estimada.
 
 **Abertura do breaker, invalidação e descarte.**
@@ -386,7 +390,7 @@ Para a seção 8, com `N` oportunidades de consulta, fração efetivamente atend
 
 **Escolha.** Após considerar todas as parceiras, responder **HTTP 200** se houver ao menos uma proposta válida, de parceira ou cache não vencido. Resposta parcial é o fallback; cache válido é o caminho normal de reutilização, não uma autorização de stale. Sem nenhuma proposta válida, responder **HTTP 503** com recusa explícita de negócio. Não usar HTTP 206: não é uma transferência parcial de bytes.
 
-O contrato futuro de `Response`, em `internal\quotation\request.go`, manterá `tenant_id`, `quotes` e `elapsed_ms`, acrescentando:
+O contrato completo de `Response`, em `internal\quotation\request.go`, manterá `tenant_id`, `quotes` e `elapsed_ms`, acrescentando os campos abaixo. Nesta versão já existem `cache_status`, `degraded` e os metadados por proposta no caminho com cache; `status`, ausentes/motivos e recusa 503 permanecem pendentes.
 
 | Campo proposto | Semântica obrigatória |
 | --- | --- |
@@ -407,15 +411,15 @@ Manter os erros 400/403 e respectivas mensagens de validação, `GET /healthz` e
 
 ### 4.5 Componentes - C4 nível 3 da fatia decidida
 
-Os componentes internos são **extensões propostas** de arquivos existentes, não pacotes já entregues. Somente a fatia protegida é decomposta; Redis, Collector e parceiras ficam fora da fronteira do contêiner API. O boot e a leitura de parâmetros permanecem em `cmd\quotation-api\main.go` e `internal\platform\config.go`.
+Os componentes internos misturam implementação e destino proposto: timeout, breaker e cache já existem; composição parcial e sinais de negócio ainda não. Somente a fatia protegida é decomposta; Redis, Collector e parceiras ficam fora da fronteira do contêiner API. O boot e a leitura de parâmetros permanecem em `cmd\quotation-api\main.go` e `internal\platform\config.go`.
 
 ```mermaid
 flowchart LR
     caller["Consumidor da API<br/>Corretora ou loadgen"]
-    subgraph api["quotation-api - conteiner Go existente; extensoes PROPOSTAS"]
+    subgraph api["quotation-api - conteiner Go existente; implementacao parcial"]
         handler["Handler HTTP e normalizacao<br/>internal/quotation/handler.go e request.go"]
         service["Agregador serial e fallback<br/>internal/quotation/service.go"]
-        cache["Cache por tenant, risco e parceira<br/>Responsabilidade nova do fluxo quotation"]
+        cache["Cache por tenant, risco e parceira<br/>quotation/cache.go e cache/redis.go implementados"]
         protected["Cliente protegido e breaker por parceira<br/>internal/partner/client.go - gobreaker v2 implementado"]
         http["Cliente HTTP com timeout por parceira<br/>Extensao de internal/partner/client.go"]
         signals["Sinais de negocio propostos<br/>Reutilizam SDK de internal/platform/telemetry.go"]
@@ -436,7 +440,7 @@ flowchart LR
     signals -->|"Traces e metricas - OTLP/gRPC :4317"| collector
 ```
 
-A chave e o envelope serão responsabilidade do fluxo de cache de quotation; o diagrama não exige um novo arquivo específico. Não introduzir um serviço de resiliência remoto, pool com admissão limitada, fila ou mecanismo de auditoria para concretizar esse desenho.
+A chave e o envelope são responsabilidade de `internal\quotation\cache.go`; o adaptador RESP está em `internal\cache\redis.go`. Não introduzir um serviço de resiliência remoto, pool com admissão limitada, fila ou mecanismo de auditoria para concretizar esse desenho.
 
 ### 4.6 Instrumentação decidida como método de prova
 
@@ -498,18 +502,21 @@ A mistura de preços/instantes não é observada necessariamente no mock: F-08 c
 
 ### 4.8 Escopo implementável e provas pendentes
 
-**Até esta versão:** base, ambiente, evidências do antes e D-01 estão implementados. `partner.NewResilientClient` cria no boot os clientes HTTP com timeout e breakers por parceira; configuração inválida falha na inicialização. O callback apenas registra transições em log, sem rede nem consulta recursiva de estado. D-02, D-03 e novos sinais de negócio continuam pendentes: a API ainda agrega em série, aborta no primeiro erro e retorna 502 na falha de parceira. Não há alegação de fallback parcial ou cache entregue.
+**Até esta versão:** base, evidências do antes, D-01 e cache isolado de D-02 estão implementados. O boot liga `partner.NewResilientClient`, `cache.NewRedis` e `quotation.NewCachedService`; configuração inválida falha na inicialização. A conexão Redis é preguiçosa e seu fechamento ocorre após o encerramento das requisições HTTP. O callback do breaker apenas registra transições em log, sem rede nem consulta recursiva de estado. D-03 e novos sinais de negócio continuam pendentes: a API ainda agrega em série, aborta no primeiro erro de parceira/expiração e retorna 502. Não há alegação de fallback parcial entregue.
 
 `internal\partner\resilience_test.go` cobre abertura e curto-circuito, uma sondagem em meio aberto, fechamento/reabertura, reset por sucesso e janela fixa, timeout de cabeçalhos/corpo, exclusão de cancelamento/prazo do consumidor, liberação da sondagem excluída, isolamento entre parceiras e conclusões tardias. Respostas inválidas e erros locais são diferenciados. `internal\partner\client_test.go` verifica também ausência de redirecionamento; `internal\platform\config_test.go` verifica configuração válida/inválida. `cmd\quotation-api\main_test.go` exercita a composição efetivamente chamada por `main` através de `POST /quotes`, incluindo o limiar personalizado e compartilhamento entre tenants.
 
-O PoC estendeu `internal\partner\client.go`, configuração e boot para D-01. Ainda deverá estender `internal\quotation\service.go` para cache e composição parcial, `internal\quotation\request.go` e `internal\quotation\handler.go` para metadados e recusa, e ligar essas dependências no boot. A suíte original permanece, com a configuração de parceiras personalizadas agora acompanhada dos timeouts exigidos. `NewClient` conserva o construtor básico sem breaker usado nos testes legados; o boot usa exclusivamente `NewResilientClient`, comprovado pelo teste de integração. **Isso não autoriza manter a entrega final no modo tudo-ou-nada**; essa mudança de contrato ocorrerá futuramente.
+`internal\quotation\cache_test.go` prova chave canônica e seus sete campos, hit sem renovação, duas corretoras com preços distintos, validade menor da parceira, TTL configurado, original preservado, entradas inválidas, Redis indisponível e vencimento durante consulta/composição. Usa transporte/cache controlados e relógio virtual. `internal\cache\redis_test.go` integra o cliente RESP ao **miniredis v2.35.0**, somente em testes, e prova SET com expiração absoluta; testes em `net.Pipe`/`synctest` verificam o prazo total de 20 ms nas fases de conexão, handshake, comando e espera por pool, sem retries de comando. O teste do boot cobre duas parceiras/duas corretoras via HTTP, hits com breaker aberto e sucesso fresco com cache indisponível.
+
+O PoC ainda deverá estender serviço/handler para composição parcial, ausentes e recusa de D-03. A suíte original permanece. `NewClient`/`NewService` conservam o caminho básico dos testes legados; o boot usa exclusivamente o cliente protegido e o serviço com cache. **Isso não autoriza manter a entrega final no modo tudo-ou-nada**; essa mudança de contrato ocorrerá futuramente.
 
 | Prova a produzir nas tarefas de código/evidência | Condição de aceite específica |
 | --- | --- |
 | Breaker com relógio virtual — implementada | Três falhas em janela abrem; tentativa seguinte não executa transporte; após 5 s uma sondagem é admitida; sucesso fecha e falha reabre; cancelamento do consumidor não altera saúde |
 | Timeout com transporte controlado — implementada | Prazo próprio expira e conta como falha; diferenciar de cancelamento do consumidor e provar timeout da degradante sem esperar teto de 6 s |
-| Cache e isolamento | Duas corretoras, mesmo risco, não compartilham entrada; alterar qualquer campo relevante altera a chave; hit não chama HTTP nem estende expiração; vencimento não serve stale |
-| Fallback e Redis indisponível | Parceira indisponível não apaga propostas válidas das demais; motivos/origem/idade aparecem; zero válidas gera 503, não 200 vazio; erro de Redis respeita prazo e permite consulta externa |
+| Cache e isolamento — implementada | Duas corretoras, mesmo risco, não compartilham entrada; alterar qualquer campo relevante altera a chave; hit não chama HTTP nem estende expiração; vencimento não serve stale |
+| Redis indisponível — implementada | Erro/timeout de GET permite consulta externa protegida; SET falho não descarta proposta fresca; `cache_status=unavailable` e `degraded=true` aparecem no sucesso |
+| Fallback parcial — pendente | Parceira indisponível não apaga propostas válidas das demais; ausentes/motivos aparecem; zero válidas gera 503, não 200 vazio |
 | Execução padrão do depois | `make down` e `make reproduce`, mesmos defaults e carga; capturar antes de derrubar, conforme seção 3; só ela serve de comparação quantitativa |
 | Estímulo auxiliar de transições | Usar riscos inéditos para não esconder falhas atrás de hits; percorrer a sequência padrão até observar as transições, com comando/janela declarados. Não alterar mocks nem apresentar carga auxiliar como comparação padrão |
 

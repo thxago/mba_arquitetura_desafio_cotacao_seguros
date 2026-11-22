@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/cache"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/quotation"
@@ -29,10 +30,11 @@ func main() {
 		log.Fatalf("telemetry: %v", err)
 	}
 
-	api, err := newAPI(cfg)
+	api, closeCache, err := newAPI(cfg)
 	if err != nil {
-		log.Fatalf("partner protection: %v", err)
+		log.Fatalf("API dependencies: %v", err)
 	}
+	defer func() { _ = closeCache() }()
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -40,7 +42,9 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		log.Print("quotation-api: signal received, shutting down")
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -58,12 +62,22 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server stopped: %v", err)
 	}
+	<-shutdownDone
 }
 
-func newAPI(cfg platform.Config) (http.Handler, error) {
+func newAPI(cfg platform.Config) (http.Handler, func() error, error) {
 	client, err := partner.NewResilientClient(cfg.Partners, cfg.Resilience)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return quotation.NewAPI(quotation.NewService(cfg.Partners, client), cfg.Tenants).Routes(), nil
+	store, err := cache.NewRedis(cfg.Cache)
+	if err != nil {
+		return nil, nil, err
+	}
+	service, err := quotation.NewCachedService(cfg.Partners, client, store, cfg.Cache)
+	if err != nil {
+		_ = store.Close()
+		return nil, nil, err
+	}
+	return quotation.NewAPI(service, cfg.Tenants).Routes(), store.Close, nil
 }

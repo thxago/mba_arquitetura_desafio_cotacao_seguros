@@ -122,6 +122,40 @@ func TestInvalidResilienceConfigurationFails(t *testing.T) {
 	}
 }
 
+func TestCacheConfigDefaultsAndOverrides(t *testing.T) {
+	cfg, err := LoadConfig(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Cache.Address != "127.0.0.1:6379" || cfg.Cache.TTL != 300*time.Second ||
+		cfg.Cache.OperationTimeout != 20*time.Millisecond {
+		t.Fatalf("unexpected cache defaults: %+v", cfg.Cache)
+	}
+	cfg, err = LoadConfig(env(map[string]string{
+		"REDIS_ADDR": " [::1]:6380 ", "CACHE_TTL": "45s", "REDIS_OPERATION_TIMEOUT": "15ms",
+	}))
+	if err != nil || cfg.Cache.Address != "[::1]:6380" || cfg.Cache.TTL != 45*time.Second ||
+		cfg.Cache.OperationTimeout != 15*time.Millisecond {
+		t.Fatalf("cache overrides: %+v err=%v", cfg.Cache, err)
+	}
+}
+
+func TestInvalidCacheConfigurationFails(t *testing.T) {
+	for key, values := range map[string][]string{
+		"REDIS_ADDR":              {" ", "redis", ":6379", "redis:0", "redis:65536", "redis:port", "redis://host:6379", "bad host:6379"},
+		"CACHE_TTL":               {"0s", "-1s", "301s", "24h", "soon", "999999999999999999999s"},
+		"REDIS_OPERATION_TIMEOUT": {"0s", "-1s", "soon"},
+	} {
+		for _, value := range values {
+			t.Run(key+"="+value, func(t *testing.T) {
+				if _, err := LoadConfig(env(map[string]string{key: value})); err == nil {
+					t.Fatal("invalid cache configuration accepted")
+				}
+			})
+		}
+	}
+}
+
 func TestTelemetryIsOnByDefault(t *testing.T) {
 	cfg, err := LoadConfig(env(nil))
 	if err != nil {

@@ -18,12 +18,18 @@ import (
 )
 
 type Quote struct {
-	Partner         string `json:"partner"`
-	QuoteID         string `json:"quote_id"`
-	PremiumCents    int64  `json:"premium_cents"`
-	Currency        string `json:"currency"`
-	CoverageCents   int64  `json:"coverage_cents"`
-	ValidForSeconds int64  `json:"valid_for_seconds"`
+	Partner         string    `json:"partner"`
+	QuoteID         string    `json:"quote_id"`
+	PremiumCents    int64     `json:"premium_cents"`
+	Currency        string    `json:"currency"`
+	CoverageCents   int64     `json:"coverage_cents"`
+	ValidForSeconds int64     `json:"valid_for_seconds"`
+	RequestedAt     time.Time `json:"-"`
+}
+
+func (q Quote) IsValid() bool {
+	return strings.TrimSpace(q.QuoteID) != "" && q.PremiumCents > 0 &&
+		q.CoverageCents > 0 && q.Currency == "BRL" && q.ValidForSeconds > 0
 }
 
 type Client struct {
@@ -119,6 +125,7 @@ func (c *Client) Quote(ctx context.Context, p platform.Partner, request any) (Qu
 }
 
 func executeQuote(client *http.Client, req *http.Request, name string) (Quote, error) {
+	requestedAt := time.Now().UTC()
 	response, err := client.Do(req)
 	if err != nil {
 		return Quote{}, requestError(req.Context(), name, err)
@@ -149,12 +156,12 @@ func executeQuote(client *http.Client, req *http.Request, name string) (Quote, e
 	if err := json.Unmarshal(body, &quote); err != nil || len(body) > responseLimit {
 		return Quote{}, &Error{Partner: name, Kind: "invalid_response", Reason: "unreadable or oversized response", Cause: err}
 	}
-	if strings.TrimSpace(quote.QuoteID) == "" || quote.PremiumCents <= 0 ||
-		quote.CoverageCents <= 0 || quote.Currency != "BRL" || quote.ValidForSeconds <= 0 {
+	if !quote.IsValid() {
 		return Quote{}, &Error{Partner: name, Kind: "invalid_response", Reason: "invalid quote"}
 	}
 
 	quote.Partner = name
+	quote.RequestedAt = requestedAt
 	return quote, nil
 }
 

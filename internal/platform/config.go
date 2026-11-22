@@ -2,6 +2,7 @@ package platform
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strconv"
@@ -15,6 +16,13 @@ type Config struct {
 	Tenants    []string
 	Telemetry  Telemetry
 	Resilience Resilience
+	Cache      Cache
+}
+
+type Cache struct {
+	Address          string
+	TTL              time.Duration
+	OperationTimeout time.Duration
 }
 
 type Resilience struct {
@@ -64,7 +72,37 @@ func LoadConfig(env func(string) string) (Config, error) {
 	if cfg.Resilience, err = parseResilience(env, cfg.Partners); err != nil {
 		return Config{}, err
 	}
+	if cfg.Cache, err = parseCache(env); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+func parseCache(env func(string) string) (Cache, error) {
+	cfg := Cache{Address: strings.TrimSpace(text(env, "REDIS_ADDR", "127.0.0.1:6379"))}
+	var err error
+	if cfg.TTL, err = time.ParseDuration(strings.TrimSpace(text(env, "CACHE_TTL", "300s"))); err != nil {
+		return Cache{}, fmt.Errorf("CACHE_TTL: %w", err)
+	}
+	if cfg.OperationTimeout, err = time.ParseDuration(strings.TrimSpace(text(env, "REDIS_OPERATION_TIMEOUT", "20ms"))); err != nil {
+		return Cache{}, fmt.Errorf("REDIS_OPERATION_TIMEOUT: %w", err)
+	}
+	return cfg, cfg.Validate()
+}
+
+func (cfg Cache) Validate() error {
+	host, port, err := net.SplitHostPort(cfg.Address)
+	number, portErr := strconv.Atoi(port)
+	if err != nil || portErr != nil || host == "" || strings.ContainsAny(host, " \t\r\n/") || number < 1 || number > 65535 {
+		return fmt.Errorf("REDIS_ADDR: must be host:port with a port between 1 and 65535")
+	}
+	if cfg.TTL <= 0 || cfg.TTL > 300*time.Second {
+		return fmt.Errorf("CACHE_TTL: must be positive and no greater than 300s")
+	}
+	if cfg.OperationTimeout <= 0 {
+		return fmt.Errorf("REDIS_OPERATION_TIMEOUT: must be positive")
+	}
+	return nil
 }
 
 func parseResilience(env func(string) string, partners []Partner) (Resilience, error) {
