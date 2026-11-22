@@ -1,8 +1,8 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.8 | 22/11/2026**
+**Solution Architecture Document | versão 0.9 | 22/11/2026**
 
-**Estado:** seções 1 a 4 elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Seções 5 a 8 reservadas para as próximas etapas. A arquitetura de produção está **parcialmente implementada**; este documento parcial não declara o desafio concluído.
+**Estado:** seções 1 a 6 elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Hospedagem e operação de produção estão projetadas, não provisionadas. Seções 7 e 8 permanecem pendentes. A arquitetura de produção está **parcialmente implementada**; este documento parcial não declara o desafio concluído.
 
 ## 1. Introdução
 
@@ -32,9 +32,9 @@ O enunciado ainda está no README da raiz; sua futura organização em outro doc
 
 ### 1.3 Escopo e fronteiras
 
-O PoC proposto cobre timeout e circuit breaker na chamada às parceiras, cache Redis segregado por corretora, fallback explícito no contrato e instrumentação de negócio sobre OpenTelemetry. A seção 2 mostra essa mudança sem criar novos contêineres. O mapa detalhado e os parâmetros estão decididos na seção 4, antes da implementação.
+O PoC implementado cobre timeout e circuit breaker na chamada às parceiras, cache Redis segregado por corretora, fallback explícito no contrato e instrumentação de negócio sobre OpenTelemetry. A seção 2 mostra essa mudança sem criar novos contêineres. O mapa detalhado e os parâmetros foram decididos na seção 4, antes da implementação.
 
-O SAD também deverá projetar hospedagem, auditoria imutável, operação, recuperação e TCO. **Projetar auditoria não significa persistir registros no PoC**: cache efêmero e traces não cumprem retenção regulatória.
+As seções 5 e 6 projetam hospedagem, auditoria imutável e operação; recuperação e TCO ainda serão concluídos nas seções 7 e 8. **Projetar auditoria não significa persistir registros no PoC**: cache efêmero e traces não cumprem retenção regulatória.
 
 Não fazem parte da implementação: motores das seguradoras, integrações reais, interface do corretor, cadastro, cobrança, relatórios comerciais, persistência de auditoria, retry, bulkhead, rate limiting, filas, autenticação ou Kubernetes. Não serão resolvidas transações entre cache e parceira nem coordenação distribuída de breakers. A agregação paralela é bônus opcional, não premissa para cumprir os requisitos desta versão. Essas exclusões vêm de F-01 e estão relacionadas aos limites operacionais da seção 4.7.
 
@@ -52,7 +52,7 @@ Não fazem parte da implementação: motores das seguradoras, integrações reai
 | Prumo operadora, corretora controladora; minimização e descarte | Separar cache descartável de auditoria e excluir CPF, placa e `quote_id` de atributos de spans/métricas |
 | Ambiente local sem conta cloud e sem gasto obrigatório | Executar o PoC localmente; estimativas de produção não autorizam provisionamento |
 
-As decisões de breaker, timeout, cache e fallback estão fixadas na seção 4 e implementadas nesta versão. Não são restrições externas nem aprovações comerciais: são escolhas técnicas revisáveis com evidência, sob os pressupostos da seção 1.5. A hospedagem de produção será decidida na seção 5 por retenção, residência, segregação e custo. Os números de aceitação da seção 3 são metas propostas, não um SLA vendido.
+As decisões de breaker, timeout, cache e fallback estão fixadas na seção 4 e implementadas nesta versão. Não são restrições externas nem aprovações comerciais: são escolhas técnicas revisáveis com evidência, sob os pressupostos da seção 1.5. A hospedagem de produção é decidida na seção 5 por retenção, residência, segregação e custo, sem provisionamento. Os números de aceitação da seção 3 são metas propostas, não um SLA vendido.
 
 ### 1.5 Pressupostos quantificados
 
@@ -67,7 +67,7 @@ As hipóteses abaixo não são medições de produção. Precisam ser validadas 
 
 Para P-01, a unidade é a oportunidade de consulta por parceira, não a cotação agregada. Com o cache por parceira da seção 4.3, as frações elegíveis de 20% e 40% sustentam cenários condicionais de hit rate de até 20% e 40%, sem expulsão nem perda do Redis. O limite de 300 s começa antes do envio HTTP e não se renova no hit; o prazo útil após a resposta é menor. Falhas de preenchimento, validade restante e expiração podem reduzir o acerto. A seção 8 deverá explicitar essas perdas ou tratar esses números como limites de cenários, nunca como medição de produção.
 
-A carga sintética repete cinco riscos em 210 requisições. Seu futuro hit rate serve para provar aquecimento e instrumentação, **não para substituir P-01** ou sustentar projeções próximas de 98% em produção.
+A carga sintética repete cinco riscos em 210 requisições. Seu hit rate medido serve para provar aquecimento e instrumentação, **não para substituir P-01** ou sustentar projeções próximas de 98% em produção.
 
 ### 1.6 Parâmetros de negócio fornecidos
 
@@ -163,7 +163,7 @@ flowchart LR
     operator -->|"Estado, hit/miss e latencia - HTTP/PromQL :9090"| prometheus
 ```
 
-A auditoria durável de produção **não está representada como contêiner entregue**. Seu armazenamento, residência e imutabilidade ainda serão projetados nas seções 5, 7 e 8, para atender RF-10 e RNF-06. Jaeger, Prometheus e Redis não a substituem.
+A auditoria durável de produção **não está representada como contêiner entregue**. Seu armazenamento, residência e imutabilidade são projetados na seção 5 para atender RF-10 e RNF-06; recuperação e dimensionamento financeiro permanecem para as seções 7 e 8. Jaeger, Prometheus e Redis não a substituem.
 
 ### 2.4 Delta proposto e destinatários
 
@@ -196,7 +196,7 @@ Nos requisitos abaixo, “existente” é comportamento a preservar; “novo” 
 | RF-07 | Bloquear chamadas externas abrangidas por um circuito aberto; tornar verificáveis fechado, aberto e meio aberto e limitar espera por timeout conforme parâmetros previamente defendidos | **Implementado**: `internal\partner\client.go`; `internal\partner\resilience_test.go` prova estados, timeout e zero chamadas em aberto com relógio virtual; `cmd\quotation-api\main_test.go` prova ligação do breaker configurado ao boot |
 | RF-08 | Ao ocorrer falha, timeout ou curto-circuito, devolver o resultado de negócio definido na seção 4 com degradação identificável pelo consumidor; se apresentar cache anterior, informar origem e idade; se apresentar resposta parcial, identificar ausentes; se recusar, devolver erro de negócio distinguível e orientação | **Implementado** no serviço com cache e handler: parcial 200, ausentes/motivos, origem/idade e recusa 503 `no_valid_quotes` com orientação. Testes determinísticos e integração do boot verificam o contrato; o baseline 502 não descreve a API atual |
 | RF-09 | Expor sinais observáveis de estado/transição do breaker, hit/miss de cache e latência por parceira, e marcar no trace resposta de cache e requisição curto-circuitada | **Implementado**: Counters de transições/lookups, histograma HTTP reutilizado e eventos de cache/curto-circuito. Testes e exportações reais do Prometheus/Jaeger na seção 4.6; sem dados pessoais nem novos rótulos ilimitados |
-| RF-10 | Para cada cotação efetivamente apresentada, permitir reconstruir seguradora, prêmio, corretora e instante, ligando cache/fallback à consulta original, e prever registro durável imutável | **Produção proposta**, obrigação F-01; seção 5 deverá projetar o mecanismo, seção 7 a recuperação e seção 8 o custo. Aceite por desenho e dimensionamento; persistência regulatória não é alegada como entregue pelo PoC |
+| RF-10 | Para cada cotação efetivamente apresentada, permitir reconstruir seguradora, prêmio, corretora e instante, ligando cache/fallback à consulta original, e prever registro durável imutável | **Produção proposta**, obrigação F-01; mecanismo projetado na seção 5, recuperação e custo pendentes nas seções 7 e 8. Aceite por desenho e dimensionamento; persistência regulatória não é alegada como entregue pelo PoC |
 
 RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção e estão implementados nesta etapa. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
 
@@ -256,7 +256,7 @@ O [gráfico do depois](evidencias/depois-p95.png), capturado com o Compose ativo
 
 O SDK exporta métricas a cada 10 s e o Prometheus raspa o Collector a cada 5 s (F-06); a carga é curta e há defasagem entre a requisição e sua observação. Não preencher lacunas como zero. Os arquivos exportados de F-04 permanecem a fonte do antes mesmo após expirar a retenção ou derrubar o Compose.
 
-As métricas de breaker/cache estão implementadas e sua chegada aos backends está comprovada na seção 4.6; a seção 6 ainda deverá associá-las a limiares e ações. Timeout, breaker e validade de cache possuem provas determinísticas próprias. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
+As métricas de breaker/cache estão implementadas e sua chegada aos backends está comprovada na seção 4.6; a seção 6 associa esses sinais a limiares e ações propostos. Timeout, breaker e validade de cache possuem provas determinísticas próprias. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
 
 ### 3.6 Rastreabilidade para as próximas seções
 
@@ -549,15 +549,252 @@ A suíte original permanece. `NewClient`/`NewService` conservam o caminho básic
 
 A carga auxiliar pode variar o número de riscos/concorrência via argumentos já oferecidos pelo loadgen, sem editar seu código. Não há garantia de que o cache aquecido na execução padrão permita observar todas as transições. O ambiente e seus contadores precisam de reset para uma prova auxiliar reproduzível, mas só depois de exportar as evidências da execução padrão.
 
-Ficam **apenas como propostas de produção**: auditoria imutável e seus cinco anos de retenção, autenticação, coordenação entre réplicas, controles de capacidade, hospedagem resiliente e recuperação de região. A seção 5 decidirá hospedagem, a seção 6 alertas/runbook, a seção 7 RTO/RPO e a seção 8 custos/pessoal. Nenhuma dessas extensões será implementada para compensar os limites da seção 4.7.
+Ficam **apenas como propostas de produção**: auditoria imutável e seus cinco anos de retenção, autenticação, coordenação entre réplicas, controles de capacidade, hospedagem resiliente e recuperação de região. As seções 5 e 6 registram hospedagem e alertas/runbook; as seções 7 e 8 ainda definirão RTO/RPO e custos/pessoal. Nenhuma dessas extensões será implementada para compensar os limites da seção 4.7.
 
 ## 5. Implementação
 
-**Pendente.** Após as decisões e o PoC, mapear mecanismos a arquivos realmente existentes, distinguir implementação de proposta e decidir hospedagem por compliance e custo. Nenhuma infraestrutura adicional é declarada entregue.
+### 5.1 Mecanismo, arquivo e prova
+
+Os caminhos abaixo partem da raiz. A seção 4 justifica os parâmetros; este mapa identifica o caminho realmente executado, não uma arquitetura substituta.
+
+| Mecanismo / requisito | Arquivos reais e responsabilidade | Biblioteca e prova |
+| --- | --- | --- |
+| Composição e encerramento | `cmd\quotation-api\main.go`: `LoadConfig` → `StartTelemetry` → `newAPI`; cliente protegido → Redis → serviço com cache → handler. Drena HTTP por até 10 s, tenta exportar telemetria e fecha Redis ao sair | `cmd\quotation-api\main_test.go` e `telemetry_test.go` exercitam o boot real; Redis é conexão preguiçosa, não dependência de inicialização saudável |
+| Configuração validada / RNF-07 | `internal\platform\config.go`: endpoints, tenants, timeouts por parceira, limiar/janela/sondagem do breaker, endereço Redis, TTL e prazo de operação | `config_test.go`; inválidos falham antes de servir. Mudanças são por ambiente e recriação do processo; não há hot reload |
+| Timeout, breaker e resposta válida / RF-06, RNF-01 a RNF-03 | `internal\partner\client.go`: cliente reutilizado por parceira/processo, timeout cobrindo corpo, classificação de falhas, exclusão de cancelamento do consumidor, bloqueio antes do transporte e Counter de transições | `sony/gobreaker/v2 v2.4.0`: três estados explícitos, janela fixa e admissão limitada no meio aberto; `resilience_test.go`, `client_test.go` e `telemetry_test.go` |
+| Cache-aside isolado e validade / RF-01 a RF-05 | `internal\quotation\cache.go`: chave canônica, envelope, GET antes do breaker, validação por tenant/parceira, expiração original e eventos. `internal\cache\redis.go`: RESP2, GET e SET PXAT absoluto, prazo total e zero retries | `go-redis/v9 v9.12.1`: cliente RESP/pool consolidado, compatível com o prazo e os testes. `cache_test.go` e `redis_test.go`; `miniredis/v2 v2.35.0` é somente teste |
+| Fallback e contrato / RF-07 a RF-09 | `internal\quotation\service.go`: sequência preservada, sobreviventes válidas ordenadas e ausências; `request.go`: normalização/DTOs/origem; `handler.go`: allowlist e 200 completo/parcial ou 503 sem válidas | Testes de serviço, handler, cache e boot cobrem todos os motivos, validade final e cancelamento. `NewService`/`NewClient` básicos permanecem para compatibilidade dos testes originais, não são o boot |
+| Observabilidade / RNF-04 e RNF-05 | Counters/eventos nos arquivos de parceiro/cache/serviço; `internal\platform\telemetry.go` conserva SDK e instrumentação HTTP; `deploy\otel\collector.yaml` roteia OTLP; `deploy\prometheus\prometheus.yml` raspa Collector | OpenTelemetry já existente, sem segundo SDK ou backend novo. Testes `telemetry_test.go`, exports e traces da seção 4.6 demonstram entrega real e ausência de dados privados nos sinais de negócio |
+| Empacotamento e execução | `go.mod`/`go.sum`, `Dockerfile`, `Makefile` e `docker-compose.yml`: imagem multi-stage e oito serviços do laboratório, com `loadgen` efêmero no perfil `load` | Compilação, suíte, smoke e preservação da base comprovados na seção 4.8; antes/depois em F-04/F-09 |
+
+O downgrade de go-redis em relação à tentativa inicial evitou um ticker global que não encerrava nos testes com `synctest`; a versão escolhida preserva o orçamento total e a integração RESP, sem mudar a versão Go exigida. Não foi criado breaker próprio para substituir a biblioteca; o adaptador só trata as exclusões e a instrumentação necessárias à política D-01.
+
+As provas de falha/tempo usam `testing/synctest`, transportes controlados, `net.Pipe` e miniredis; não dependem de sorte, de dormir até uma falha aleatória nem da disponibilidade do Docker. O smoke original conserva seed/perfis determinísticos. A execução real F-09 complementa, não substitui, essas provas.
+
+### 5.2 Construir, executar e conferir o contrato
+
+**Laboratório existente, sem cloud:** Go 1.25 e Make para os alvos Go; Docker com Compose v2 para a integração. Na raiz, em PowerShell:
+
+```powershell
+make vet
+make test
+make smoke
+make build
+docker compose up -d --build --wait
+docker compose ps
+Invoke-RestMethod -Uri http://127.0.0.1:8080/healthz
+$pedido = @{
+    driver = @{ document = 'teste-sintetico'; birth_year = 1985 }
+    vehicle = @{ plate = 'TESTE01'; model = 'Modelo teste'; year = 2020; value_cents = 6000000 }
+    coverage = 'comprehensive'
+} | ConvertTo-Json -Depth 3
+$resposta = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8080/quotes `
+    -Headers @{ 'X-Tenant-Id' = 'corretora-a' } -ContentType 'application/json' -Body $pedido
+$resposta | Select-Object status, cache_status, degraded, unavailable_partners
+$resposta.quotes | Select-Object partner, source, age_seconds, valid_for_seconds, expires_at
+```
+
+Usar somente dados sintéticos; não colar respostas com dados reais em chamados. `/healthz` é **liveness**: não verifica Redis, parceiros nem entrega OTLP. Um 200 não garante três propostas, e sucesso pode ter `degraded=true`. A segunda consulta idêntica pode aproveitar o cache válido; falha inicial de uma parceira não garante hit para ela. Uma recusa 503 vem com `status=unavailable`, `error=no_valid_quotes` e orientação; no PowerShell ela gera exceção HTTP, cujo corpo deve ser inspecionado sem repetir automaticamente a consulta paga.
+
+A API usa `http://127.0.0.1:8080`, Jaeger `http://127.0.0.1:16686` e Prometheus `http://127.0.0.1:9090`; métricas da API são expostas pelo **Collector** em `http://127.0.0.1:8889/metrics`, não pela API. As publicações Compose não estão restritas a loopback: executar em rede local controlada, nunca expor esses serviços sem proteção. Não são endpoints públicos seguros.
+
+`make run` executa somente a API no host; iniciar antes Redis, três mocks e Collector pelo Compose, sem a API Compose ocupando 8080. Os defaults do host usam parceiros em localhost:9001/9002/9003, Redis em 127.0.0.1:6379 e Collector em localhost:4317. Para construir só a imagem da API: `docker compose build quotation-api`.
+
+Para repetir a comparação, reservar janela isolada, exportar o estado anterior e usar `make reproduce` com defaults, preservando mocks/loadgen/perfis. `make down` remove serviços/volumes **deste projeto** e perde cache/telemetria efêmera: somente ao encerrar laboratório ou preparar prova autorizada após exportar, não como mitigação de incidente. Não executar os comandos de carga indiscriminadamente em ambiente compartilhado. A prova já persistida é F-09; esta etapa documental não a reexecuta.
+
+### 5.3 D-04 — Hospedagem de produção, proposta e não provisionada
+
+**Contexto.** RF-10/RNF-06 exigem cinco anos não regraváveis para cada apresentação, inclusive cache/fallback; RF-01/RNF-04 exigem segregação e minimização. F-01 **não fixa um país obrigatório nem comprova datacenter próprio**. Adota-se como política proposta, sujeita à aprovação da controladora/encarregado, residência no Brasil para payload, cache, auditoria, chaves, logs, traces e suas cópias. Não se atribui à LGPD uma proibição genérica de cloud ou transferência internacional. Localização de suporte, subprocessadores e acesso remoto também precisam de análise contratual; escolher uma região não resolve isso sozinho.
+
+| Opção | Atendimento e custo de compliance | Decisão |
+| --- | --- | --- |
+| On-premise no Brasil | Pode cumprir residência e WORM com equipamento, chaves e procedimentos adequados, mas exige comprar/operar capacidade, segundo local, proteção física e prova de retenção. Não há ativo ou equipe existente comprovados para amortizar esse custo | Descartada como primeira implantação; controle físico não garante segregação lógica nem imutabilidade e o investimento fixo não se justifica sem inventário/cotação |
+| Cloud com região brasileira e serviços elegíveis | Contrato deve garantir localização de dados/cópias, isolamento de contas/redes, acesso e armazenamento com retenção bloqueada por cinco anos. Paga capacidade recorrente, armazenamento crescente, operações, chaves e eventuais transferências; evita presumir investimento em datacenter próprio | **Escolhida**, condicionada às evidências contratuais/técnicas abaixo; provedor comercial será selecionado por esses critérios, não está contratado |
+| Híbrido: API/cache cloud e auditoria on-premise | Só atende se os dois lados e o vínculo forem auditáveis; adiciona dois domínios de acesso, transferência e dependência de rede no caminho da confirmação durável. Mantém custo fixo local e custo cloud | Descartada: não há obrigação de manter acervo local comprovada que compense duplicar operação e superfície de falha |
+
+**Escolha e fronteiras.** Projetar API/Redis/Collector em rede privada numa região brasileira, com ingresso autenticado e TLS; somente o ingresso recebe tráfego das corretoras. Redis e backends não têm porta pública; saída da API restrita às seguradoras/telemetria. Separar produção/homologação e a conta/cofre de auditoria; privilégios distintos para implantação, operação, leitura por corretora e gestão da retenção. A identidade autenticada deve autorizar o tenant, sem confiar apenas em `X-Tenant-Id`. Criptografia de armazenamento/transporte, chaves com acesso segregado e trilha de acesso são condições de implantação: o cliente Redis e o Compose atuais **não entregam TLS/credenciais/ACLs de produção**.
+
+Para orçamento inicial, partir de **1 instância API de 2 vCPU/4 GiB, 1 Redis de 2 vCPU/4 GiB e 1 nó de observabilidade de 4 vCPU/8 GiB**, mais armazenamento imutável separado. São unidades de dimensionamento a validar, não capacidade certificada para 120.000 cotações/dia ou topologia altamente disponível. Perda de cada nó continua sendo ponto de falha; redundância, custos associados e RTO/RPO precisam da seção 7 antes da entrada comercial. Ao introduzir réplicas, cada API terá breaker frio independente e será necessário identificar instâncias nos recursos OTel para não colidir streams cumulativos no Collector; isso não está configurado no PoC.
+
+**Auditoria proposta, não implementada.** Antes de disponibilizar propostas ao canal, a futura aplicação deve obter confirmação durável de um registro por apresentação, contendo corretora autorizada, instante, seguradoras/prêmios apresentados, origem e referência à consulta original. Uma resposta com três propostas precisa reconstituir as três; recotação servida de cache gera **nova apresentação**, ligada à origem, não reaproveita o registro anterior como se não houvesse entrega. Objetos com identificadores não reutilizáveis, retenção WORM bloqueada por cinco anos e proibição de sobrescrita/exclusão antecipada devem ficar em armazenamento separado do cache. Operação normal não pode remover bloqueios; verificação de integridade e restauração precisam de prova antes do go-live.
+
+Sem confirmação durável, a produção proposta deve recusar a apresentação e sinalizar incidente, não responder primeiro para “auditar depois”. Isso introduz disponibilidade/custo/latência no caminho crítico e exige novo contrato/testes na futura solução; **não descreve o comportamento da API atual**. Minimizar o registro: não copiar CPF/placa sem necessidade legal aprovada; referências sensíveis ficam sob autorização da corretora e controle do encarregado, não em métricas. Controladora/encarregado aprovam base, prazo, acesso e descarte após cinco anos ou suspensão legal documentada. Exclusão antecipada de dado não sujeito à retenção precisa de procedimento próprio; o limite de invalidação apenas por TTL do PoC continua.
+
+**Consequências negativas e revisão.** Há dependência do provedor/região, custo acumulado do acervo que cache não reduz, cobrança por operação/retrieval/saída e necessidade de capacitação/plantão. Bloqueio imutável dificulta corrigir excesso de dados pessoais: corrigir por novo registro minimizado, nunca regravar o original; prevenir excesso antes da gravação. Política de residência pode limitar opções de recuperação, a resolver na seção 7. A proposta deve ser revista se contratos exigirem outra localização ou se nenhum fornecedor comprovar retenção/cópias/acesso compatíveis; nesse caso reabrir D-04, não usar região estrangeira por preço.
+
+**Entradas financeiras para a seção 8.** Contabilizar as três unidades de compute acima, memória Redis descartável, disco/ingestão da seção 6.4, rede/ingresso/saída, chaves, armazenamento WORM e operações **por apresentação**, cópias/recuperação e pessoal. Como hipótese interna, API e Redis a R$ 0,60/h cada × 730 h somam R$ 876/mês; com os R$ 936 de compute/disco de telemetria de 6.4, o subtotal é **R$ 1.812/mês**, ou R$ 2.174,40 com contingência de 20%. Isso exclui auditoria, demais discos, rede, redundância e pessoal, portanto **não é TCO nem aprovação financeira**. Não há cotação comercial nem economia líquida aprovada; são preços hipotéticos, não tabela oficial de fornecedor. O TCO completo e o crescimento do acervo nos anos 1/5 permanecem pendentes, sem gasto autorizado.
+
+**Portões de entrada em produção:** contrato de localização/subprocessadores e descarte aprovado por controladora/encarregado; autorização real do tenant; isolamento/TLS/chaves; auditoria confirmada e teste de bloqueio/recuperação; alertas/retentores implantados; decisão de DR/TCO e capacidade validadas. Nenhum desses portões é satisfeito apenas por `make reproduce`.
 
 ## 6. Operação e gestão de mudanças
 
-**Pendente.** Usar métricas efetivamente emitidas para três alertas, runbook e mudança/reversão de TTL. Os limiares operacionais não estão definidos nesta etapa.
+### 6.1 Sinais, alertas e responsabilidade
+
+**Estado:** sinais existem (seção 4.6); regras, avaliador e notificações abaixo são **política proposta**, não configuração entregue. O Prometheus atual tem apenas scrapes, sem `rule_files` ou Alertmanager. Na implantação futura, operação deve instalar as expressões como regras, avaliação a cada 15 s, roteamento ao plantão e teste de disparo/recuperação. Não há Grafana ou estado contínuo do breaker entregues.
+
+| ID / severidade / requisito | Expressão abaixo e limiar; duração `for` | Ação exigida e responsável |
+| --- | --- | --- |
+| A-01 / crítica / RNF-01 | p95 de `POST /quotes` > **4 s** em 5 min, com pelo menos **100 respostas** na janela; `for: 5m` | Plantão de aplicação inicia runbook, separa miss/erro Redis de HTTP lento por parceira e verifica mudança recente; produto acompanha impacto |
+| A-02 / crítica / RF-09, RNF-02 | Respostas **5xx > 5%** em 5 min, mínimo **100 respostas**; `for: 2m` | Plantão verifica 503 sem válidas versus 502/cancelamentos, preserva fallback e comunica corretoras; líder técnico assume incidente. Não contar 200 parcial como recusa |
+| A-03 / aviso / RF-02, RNF-03 | Erros de **GET Redis > 1%** por parceira em 5 min, mínimo **100 lookups** por parceira; `for: 5m` | Plantão de plataforma verifica rede/pool/CPU/memória e prazo total de 20 ms, restaura dependência e acompanha chamadas pagas; acionar aplicação se o erro coincide com release |
+| A-04 / aviso / RF-06, RNF-05 | **≥ 3 transições para aberto** por parceira em 10 min; `for: 1m` | Plantão de aplicação verifica churn nos logs/traces e abre chamado com a seguradora; não reinicia API para fechar circuito. Escala conforme 6.2 |
+| A-05 / crítica / RNF-05 | Scrape de qualquer um dos dois jobs do Collector falha ou job esperado desaparece; `for: 2m` | Plataforma restaura caminho de coleta, confronta saúde da API e entregas OTLP; não interpreta ausência de dado como recuperação |
+
+Os limiares são iniciais de engenharia, revisáveis após sete dias úteis de tráfego representativo, não SLAs aprovados. A-01 deriva de P-03; 5% em A-02 preserva margem frente ao objetivo de disponibilidade útil da seção 3; 1% em A-03 detectaria erro sustentado como os **31/630 = 4,92%** do laboratório, mas F-09 é curto demais para satisfazer seu `for`. A-04 detecta reaberturas repetidas, não uma única indisponibilidade longa. Instabilidade de 40% do mock não é baseline de alerta aceitável de uma seguradora real.
+
+**PromQL A-01 — segundos; agregar buckets antes de calcular o quantil:**
+
+```promql
+(
+  histogram_quantile(0.95, sum by (le) (
+    rate(http_server_request_duration_seconds_bucket{
+      service_name="quotation-api",http_request_method="POST",http_route="/quotes"
+    }[5m])
+  )) > 4
+)
+and on ()
+(
+  sum(increase(http_server_request_duration_seconds_count{
+    service_name="quotation-api",http_request_method="POST",http_route="/quotes"
+  }[5m])) >= 100
+)
+```
+
+**PromQL A-02 — fração, não percentual multiplicado por 100:**
+
+```promql
+(
+  sum(rate(http_server_request_duration_seconds_count{
+    service_name="quotation-api",http_request_method="POST",http_route="/quotes",
+    http_response_status_code=~"5.."
+  }[5m]))
+  /
+  sum(rate(http_server_request_duration_seconds_count{
+    service_name="quotation-api",http_request_method="POST",http_route="/quotes"
+  }[5m])) > 0.05
+)
+and on ()
+(
+  sum(increase(http_server_request_duration_seconds_count{
+    service_name="quotation-api",http_request_method="POST",http_route="/quotes"
+  }[5m])) >= 100
+)
+```
+
+**PromQL A-03 — denominador inclui hit, miss e erro, sem dupla contagem de SET:**
+
+```promql
+(
+  sum by (partner) (rate(prumo_cache_lookups_total{
+    service_name="quotation-api",result="error"
+  }[5m]))
+  /
+  sum by (partner) (rate(prumo_cache_lookups_total{
+    service_name="quotation-api"
+  }[5m])) > 0.01
+)
+and on (partner)
+(
+  sum by (partner) (increase(prumo_cache_lookups_total{
+    service_name="quotation-api"
+  }[5m])) >= 100
+)
+```
+
+**PromQL A-04 — conta aberturas, não mede “aberto há dez minutos”:**
+
+```promql
+sum by (partner) (
+  increase(prumo_breaker_transitions_total{
+    service_name="quotation-api",to="open"
+  }[10m])
+) >= 3
+```
+
+**PromQL A-05 — saúde do scrape, não da API nem da exportação ponta a ponta:**
+
+```promql
+(up{job=~"quotation-api|otel-collector"} == 0)
+or absent(up{job="quotation-api"})
+or absent(up{job="otel-collector"})
+```
+
+Os labels/números das métricas da aplicação estão em [depois-metricas.prom](evidencias/depois-metricas.prom); `up` é produzido pelo Prometheus para os jobs reais de F-06. Aplicar `rate`/`increase` **antes** de somar, para tratar resets por processo. Séries de erro/transição podem ainda não existir; ausência de numerador não vira zero inventado. Divisão sem denominador/volume suficiente significa **sem avaliação conclusiva**, não 100% de sucesso. As regras não detectam todo problema em tráfego baixo; o plantão usa o runbook e consulta sintética autorizada nesse caso.
+
+O job chamado `quotation-api` raspa o Collector: `up=1` não demonstra que o SDK está exportando dados novos. Comparar deltas dos Counters e novas consultas/traces com relógio da aplicação, e inspecionar logs/endpoint de métricas próprias do Collector (`:8888`) se faltarem sinais. Checagem sintética periódica ponta a ponta e alerta de frescor devem ser entregues antes de produção; não existem no Compose atual. Não há Counter de parcialidade/recusa de negócio, métrica de erro de SET ou gauge de estado: diagnosticar pelo contrato, eventos `quotation.cache_error` com `operation=set` e logs. Não criar dashboard que renomeie último Counter como estado atual.
+
+### 6.2 Runbook — Redis falha e `partner-degrading` deixa de contribuir
+
+**Sintoma e entrada:** A-03 acompanhado de A-01/A-02/A-04, ou corretora relata parcialidade por dez minutos mesmo sem alarme. Onda de misses também pode sobrecarregar a parceira com Redis saudável. Registro do incidente contém início UTC, release/configuração, alarmes, contagens agregadas e IDs de traces; nunca corpo real, CPF, placa ou chave Redis.
+
+| Etapa | Procedimento e critério |
+| --- | --- |
+| 1. Assumir / até 5 min | Plantonista de aplicação reconhece, abre incidente e chama plataforma se há erro Redis/coleta. Confirma impacto pelo contrato: 200 parcial não é indisponibilidade total; 503 com zero válidas é recusa. Verifica A-05 e relógios antes de confiar em gráficos. Não presume que `/healthz=200` significa dependências prontas |
+| 2. Delimitar / até 10 min | Consultar A-01/A-02 e A-03 por parceira; comparar hit/miss/erro e latência cliente da seção 4.6, quantidades HTTP e transições da A-04 na mesma janela. Erro de GET com subida de HTTP sugere perda de cache; miss sem erro após TTL/release/risco novo sugere reaquecimento, não falha Redis. p95 de chamadas externas exclui cache/bloqueio, portanto volume baixo de HTTP pode ser proteção funcionando |
+| 3. Confirmar causa | Inspecionar logs da API para `partner breaker:`, direções e reinícios; no Jaeger buscar `service=quotation-api`, janela UTC e evento `partner.short_circuit`/`quotation.cache_error`. Em amostra sintética controlada, conferir `unavailable_partners.reason`, origem, `expires_at` e `cache_status`. No Redis, verificar processo, rede API→Redis, CPU/memória/conexões e prazo de 20 ms; PING isolado não prova GET dentro do orçamento completo |
+| 4. Mitigar | Restaurar a dependência/rede/capacidade Redis se diagnosticada, ou reverter release/configuração causador pelo procedimento 6.3. Manter timeout, cache válido e breaker/fallback ligados; acionar suporte da seguradora se só ela falha. Solicitar ao cliente responsável que suspenda a rajada não essencial; não há mecanismo implementado que imponha essa redução. Se houver suspeita de cruzamento de tenant, interromper acesso afetado no ingresso autorizado e acionar encarregado imediatamente, mesmo que latência normalize |
+| 5. Conferir recuperação | Exigir 10 min consecutivos com GET < 1%, 5xx ≤ 5% e p95 ≤ 4 s sob volume suficiente, sem novas aberturas repetidas; comparar volume/mix ao período anterior. Com tráfego baixo, declarar amostra insuficiente e verificar consultas sintéticas de forma espaçada. Verificar de fato GET/SET e cache-hit, propostas dentro do prazo e retorno da parceira em consulta não atendida pelo cache. Registrar `open→half_open→closed` e HTTP válido, não apenas fim do alarme |
+| 6. Escalonar / encerrar | Se não há mitigação em 15 min, líder técnico assume coordenação; se recusas persistem ou parceiro não recupera em 30 min, acionar gestão da seguradora/produto e comunicar corretoras com próxima atualização em 15 min, sem prometer SLA não aprovado. Suspeita de exposição de dados ou falha da auditoria proposta é imediata ao encarregado/segurança e controladora, que conduzem avaliação/notificação. Encerrar só após prova de recuperação e registrar causa, custo incremental, decisão e ações com dono |
+
+**Comandos de diagnóstico no laboratório existente** (somente se já estiver em execução; não reiniciar a composição para investigar):
+
+```powershell
+docker compose ps
+docker compose logs --no-color --since 15m --tail 500 quotation-api redis otel-collector
+docker compose exec -T redis redis-cli PING
+docker compose exec -T redis redis-cli INFO memory
+docker compose exec -T redis redis-cli INFO clients
+$q = 'sum by (partner,result) (increase(prumo_cache_lookups_total{service_name="quotation-api"}[5m]))'
+(Invoke-RestMethod -Uri ('http://127.0.0.1:9090/api/v1/query?query=' +
+    [uri]::EscapeDataString($q))).data.result
+```
+
+Na produção proposta, usar ferramentas equivalentes sob acesso autenticado, TLS e escopo mínimo; esses comandos locais sem credencial não são procedimento de acesso à cloud. Não usar `KEYS`, dumps de payload ou `MONITOR` como diagnóstico rotineiro.
+
+**Interpretação do breaker:** depois de 5 s aberto, **a próxima tentativa que chegou ao breaker** admite uma sondagem; cache hit ocorre antes e não sonda. Ausência de fechamento durante dez minutos não prova dez minutos de falha contínua. Se não há tráfego elegível, fazer no máximo uma consulta sintética autorizada por vez, com risco de teste sem cache, aguardando a resposta e pelo menos 5 s antes de outra; contabilizar chamadas e não fabricar risco de cliente para forçar miss. Sem proposta válida, manter 503 e orientação, nunca stale ou preço inventado. F-09 demonstra essa verificação no [trace de recuperação](evidencias/auxiliar-trace-recuperacao.json) e logs da seção 4.6.
+
+**Não fazer:** `FLUSHALL`, `make down`, reiniciar todas as réplicas, elevar concorrência, desativar breaker ou elevar TTL/timeout para esconder falha. Não há botão de reset/sondagem administrativa; reiniciar a API esquece a proteção e pode piorar custo/saturação. Perda completa de Redis ou site sai deste runbook inicial para o plano da seção 7, ainda pendente; não alegar recuperação de desastre aprovada.
+
+### 6.3 Mudança e reversão de TTL
+
+**Dono e aprovação.** Produto/corretora controladora aprovam janela comercial e aceitação de preço; encarregado revisa minimização/descarte; engenharia estima chamadas/validade; plataforma agenda implantação e guarda configuração anterior. Registrar motivo, TTL anterior/novo, release, aprovadores, janela, critérios de sucesso/reversão e responsável. `0 < CACHE_TTL ≤ 300s` é o limite implementado; **24 h é teto comercial, não valor aceito nesta configuração**.
+
+**Impacto antes da mudança.** Comparar períodos de mesmo volume e mix, sem usar o hit rate sintético de F-09 como previsão. Acompanhar simultaneamente hits/(hits+misses), erros/(hits+misses+erros), chamadas HTTP efetivas e custo confirmado pelo parceiro. Erros Redis não podem melhorar artificialmente a economia estimada. Como sensibilidade máxima de fan-out completo, perder **10 pontos percentuais** de cache nas 7.920.000 oportunidades/mês pode acrescentar 792.000 chamadas, **R$ 31.680/mês**; breaker, falhas e chamadas não faturadas mudam o realizado. Refazer P-01 para a nova janela: diminuir TTL tende a reduzir elegibilidade/custo de armazenamento, mas aumentar chamadas e latência; aumentar TTL tende a aumentar reúso e risco de condição revogada antes do prazo.
+
+**Semântica real de entradas existentes**, conforme `cacheEntry.valid` em `internal\quotation\cache.go`: diminuir 300→120 s **não recorta** a entrada antiga para 120 s; se seu `expires_at` ultrapassa `quoted_at + min(120s, validade original)`, ela é tratada como miss, mesmo se recém-criada. O byte antigo fica até PXAT ou sobrescrita. Aumentar 120→300 s **não estende** a expiração já gravada; apenas novas entradas podem aproveitar o prazo maior. Em ambos os sentidos, a validade original e o teto de 24 h continuam limitantes, não há renovação no hit e a apresentação exige pelo menos um segundo restante.
+
+**Implantar em janela controlada.** Revisar configuração efetiva, testar os casos determinísticos de cache/configuração com a mesma versão e comparar amostras sintéticas. Começar com 300→120 s apenas como exemplo de mudança aprovada, não recomendação de produção. No laboratório já ativo, a forma de aplicar seria:
+
+```powershell
+# Registrar previamente o CACHE_TTL efetivo e guardar seu valor para reversão.
+$env:CACHE_TTL = '120s'
+docker compose config --format json
+docker compose up -d --no-deps --force-recreate quotation-api
+docker compose ps quotation-api
+```
+
+Inspecionar no JSON `services.quotation-api.environment.CACHE_TTL` **antes** da recriação. `docker compose restart` sozinho não aplica ambiente novo. Não repetir `make reproduce` nem recriar Redis/parceiros para essa mudança. Na produção proposta, versionar o ambiente no mecanismo de implantação aprovado, drenar requisições e aplicar por instância; a réplica única do PoC terá interrupção durante recriação. Toda recriação esfria o breaker. Em rollout de múltiplas réplicas há janela com TTLs divergentes: a configuração maior ainda pode aceitar entradas que a menor rejeita; se o motivo for restrição comercial urgente, drenar todas as instâncias antigas antes de permitir novas apresentações, aceitando interrupção controlada.
+
+**Verificar e decidir.** Desde a primeira resposta, confirmar `expires_at - quoted_at` limitado pelo novo TTL e origem, validade restante e nenhuma proposta vencida; não exportar corpos reais. Observar pelo menos 15 min de tráfego representativo após a aplicação (mais de duas vezes 300 s), comparando A-01 a A-04, chamadas/1.000 requisições e hit rate/erros separadamente. Reverter imediatamente por violação de validade/isolamento; reverter por A-01/A-02 sustentados ou se custo projetado superar em 10% o orçamento específico aprovado para a mudança. Ausência de volume torna o resultado inconclusivo, não aprova a mudança.
+
+**Reverter.** Restaurar o valor exato anterior no ambiente versionado e recriar **somente a API**, com o mesmo comando e janela/drenagem; no exemplo, `$env:CACHE_TTL = '300s'` antes do `docker compose up -d --no-deps --force-recreate quotation-api`. Confirmar ambiente e repetir verificação por 15 min. Não executar purge: uma entrada curta não ganha prazo ao voltar para 300 s; ao voltar para um TTL menor, entradas longas viram miss. A queda de hit rate e o breaker reiniciado exigem acompanhamento de chamadas até estabilizar. Restaurar também o valor da variável no shell ao fim da janela conforme seu estado anterior, para não contaminar execuções futuras. Registrar resultado/rollback sem alterar validade para recuperar economia.
+
+### 6.4 Donos, retenção e limites financeiros dos sinais
+
+| Sinal | Responsável e rotina proposta | Existente versus retenção proposta para produção |
+| --- | --- | --- |
+| Latência, 5xx, GETs e transições | Plantão de aplicação a cada alarme; plataforma cuida da entrega. Produto/finanças revisam semanalmente chamadas e hit rate com mix/volume; parceiro participa da causa externa | Métricas atuais: export 10 s, scrape 5 s, Prometheus com retenção **1 h**, sem persistência gerida pelo projeto. Proposta: scrape 15 s, 15 dias de métricas detalhadas, orçamento de 20 GiB; não coletar CPF/placa/chave/risco/tenant como labels |
+| Traces e eventos de cache/curto-circuito | Engenharia investiga incidentes; plataforma controla acesso/volume; encarregado revisa atributos antes de novas instrumentações | Hoje `AlwaysSample` no SDK e Jaeger em memória, sem retenção durável garantida. Proposta: 7 dias, até 50 GiB, amostra normal de 10% e retenção dos erros/traces lentos por política no Collector, com limite total de ingestão. Sampling/persistência **ainda não configurados** |
+| Logs operacionais e acesso à observabilidade | Plataforma mantém, aplicação interpreta transições, encarregado aprova acesso/descarte; revisão mensal de custo e permissões | Hoje stdout dos processos/containers, retenção pelo host, não uma política do projeto. Proposta: 30 dias, até 20 GiB, redigir campos sensíveis antes da exportação. Logs de aplicação/transições não são auditoria regulatória |
+| Auditoria de apresentações | Controladora/encarregado aprovam política; operação segregada do cofre comprova retenção e acesso | **Não implementada**. Cinco anos não regraváveis, armazenamento/orçamento próprios de 5.3/8, nunca sujeito a sampling ou ao descarte da telemetria |
+
+Na proposta de traces, o SDK continua gerando os spans; sampling no Collector reduz armazenamento/exportação ao backend, **não** o custo de gerar/enviar todos os spans até ele. Para preservar erros/latência, a política precisa de tail sampling, limites de memória/filas e teste de completude/pressão antes do go-live; não basta configurar uma variável de ambiente, pois o sampler atual é explícito. Toda captura a 100% deve ser temporária (até 30 min), aprovada pelo plantão, sem acrescentar dados pessoais. Limite de ingestão pode descartar telemetria operacional; nunca apresentações de auditoria.
+
+**Hipóteses de capacidade, não medições.** Para 2.640.000 requisições/mês, admitir até 8 spans/requisição e 1 KiB/span: cerca de 20,14 GiB/mês a 100%, ou 2,01 GiB/mês a 10% **antes** do acréscimo por erros/lentos e índices. Reservar 50 GiB de traces cobre variação/índices, não garante qualquer volume. Para métricas, limite inicial de 2.000 séries ativas, scrape 15 s e 16 bytes/amostra implica aproximadamente 2,57 GiB em 15 dias antes de índices/WAL; reservar 20 GiB. Logs a 500 bytes/requisição resultam em 1,23 GiB/mês antes de índices/infra; reservar 20 GiB. Somar 10 GiB de folga operacional: **100 GiB de disco de telemetria**. Validar bytes reais e bursts na homologação; limite de séries deve alertar, não truncar silenciosamente labels de negócio.
+
+**Reserva financeira de planejamento para 8:** nó de observabilidade de 4 vCPU/8 GiB a **R$ 1,20/h × 730 h = R$ 876/mês**, mais **100 GiB × R$ 0,60/GiB-mês = R$ 60/mês**; subtotal R$ 936, contingência 20% R$ 187,20, reserva arredondada **R$ 1.125/mês**. São preços unitários internos **hipotéticos**, não pesquisa/tabela de provedor nem gasto realizado. Não duplicar esse nó no TCO. Rede, cópias, licenças opcionais, impostos e pessoal serão somados separadamente na seção 8; os R$ 1.125 não são TCO total nem custo de auditoria.
+
+Plataforma e finanças estabelecem teto inicial de **R$ 1.200/mês para esse compute/disco**: aviso em 80% (R$ 960 projetados), revisão obrigatória ao atingir 100%; teto não derruba API nem apaga auditoria. Para armazenamento, avisar a 70%/agir a 85% de cada quota, e para cardinalidade avisar acima de 1.600 séries/agir em 2.000. Essas verificações de consumo/faturamento são controles propostos adicionais, não métricas de negócio ou alertas já implantados. Primeiro restringir captura temporária e atributos indevidos; depois ajustar sampling/retenção operacional com aprovação e anotar perda diagnóstica, ou aprovar expansão de capacidade. Aplicação mantém export assíncrono sem dependência de disponibilidade do backend; falha de telemetria requer A-05/investigação, não falha intencional da cotação. Nenhum limite autoriza reduzir os cinco anos de auditoria.
 
 ## 7. Recuperação de desastres
 
