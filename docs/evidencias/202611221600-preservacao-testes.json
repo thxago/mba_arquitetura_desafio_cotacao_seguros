@@ -1,0 +1,266 @@
+{
+  "baseline_commit": "cbc3c1ee7f595d066d44fa2825c019c74da8bc6d",
+  "comparison": "Go AST function declarations, normalized formatting and source positions.",
+  "current_top_level_test_count": 96,
+  "documented_existing_fixture_extension": "The environment configuration test already supplies PARTNER_TIMEOUTS for its custom partners a/b. Only that exact map entry is excluded from comparison; original assertions and all other statements are unchanged.",
+  "original_test_count": 64,
+  "original_tests": [
+    {
+      "path": "cmd/loadgen/config_test.go",
+      "name": "TestFlagsShapeTheRun"
+    },
+    {
+      "path": "cmd/loadgen/config_test.go",
+      "name": "TestInvalidRunIsRefusedInsteadOfMeasuringNothing"
+    },
+    {
+      "path": "cmd/loadgen/config_test.go",
+      "name": "TestDefaultsReproduceTheScenarioWithNoArguments"
+    },
+    {
+      "path": "cmd/loadgen/config_test.go",
+      "name": "TestEnvironmentPointsTheRunAndFlagsWin"
+    },
+    {
+      "path": "cmd/loadgen/report_test.go",
+      "name": "TestFailuresAreGroupedByCauseAndOrderedByWeight"
+    },
+    {
+      "path": "cmd/loadgen/report_test.go",
+      "name": "TestPercentileNeverInterpolates"
+    },
+    {
+      "path": "cmd/loadgen/report_test.go",
+      "name": "TestReportPutsBaselineAndLoadSideBySide"
+    },
+    {
+      "path": "cmd/loadgen/report_test.go",
+      "name": "TestReportWithoutBaselineDoesNotCompare"
+    },
+    {
+      "path": "cmd/loadgen/report_test.go",
+      "name": "TestUnreachableEnvironmentIsNotAResult"
+    },
+    {
+      "path": "cmd/loadgen/report_test.go",
+      "name": "TestDurationsAreReadableInTheReport"
+    },
+    {
+      "path": "cmd/loadgen/report_test.go",
+      "name": "TestSummaryCountsSuccessesAndTimesEveryRequest"
+    },
+    {
+      "path": "cmd/loadgen/run_test.go",
+      "name": "TestRequestsCutShortByTheEndOfTheRunAreNotCounted"
+    },
+    {
+      "path": "cmd/loadgen/run_test.go",
+      "name": "TestEveryRequestIdentifiesTheBrokerAndRotatesTheQuotes"
+    },
+    {
+      "path": "cmd/loadgen/run_test.go",
+      "name": "TestGeneratedQuoteIsAValidRequest"
+    },
+    {
+      "path": "cmd/loadgen/run_test.go",
+      "name": "TestLoadPhaseHoldsTheConfiguredNumberOfRequestsInFlight"
+    },
+    {
+      "path": "cmd/loadgen/run_test.go",
+      "name": "TestBaselinePhaseSendsOneRequestAtATime"
+    },
+    {
+      "path": "cmd/loadgen/run_test.go",
+      "name": "TestFailureKeepsItsLatencyAndBlamesThePartner"
+    },
+    {
+      "path": "cmd/loadgen/run_test.go",
+      "name": "TestRequestBeyondTheTimeoutIsAFailureOfTheRun"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestQuoteIsStablePerRequest"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestRateZeroNeverFailsAndRateOneAlwaysFails"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestDegradationOnlyStartsAboveTheThreshold"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestDifferentPartnersQuoteDifferently"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestFailuresAreIdenticalAcrossRuns"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestDifferentSeedChangesTheSequence"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestObservedFailureRateStaysCloseToTheConfiguredOne"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestFlakyProfileProducesBursts"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestJitterStaysWithinTheRange"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestDegradationIsOffWhenTheThresholdIsZero"
+    },
+    {
+      "path": "cmd/partner-mock/behavior_test.go",
+      "name": "TestAdmitCountsInFlightRequests"
+    },
+    {
+      "path": "cmd/partner-mock/config_test.go",
+      "name": "TestDefaultConfigIsAWellBehavedPartner"
+    },
+    {
+      "path": "cmd/partner-mock/config_test.go",
+      "name": "TestConfigReadsTheFullProfile"
+    },
+    {
+      "path": "cmd/partner-mock/config_test.go",
+      "name": "TestInvalidConfigFailsInsteadOfFallingBackToTheDefault"
+    },
+    {
+      "path": "cmd/partner-mock/feasibility_test.go",
+      "name": "TestFeasibilityBreakersOpenOnTheDefaultProfile"
+    },
+    {
+      "path": "cmd/partner-mock/feasibility_test.go",
+      "name": "TestFeasibilityBreakersCloseAgain"
+    },
+    {
+      "path": "cmd/partner-mock/feasibility_test.go",
+      "name": "TestFeasibilityBurstIsWhereTheDocsSayItIs"
+    },
+    {
+      "path": "cmd/partner-mock/main_test.go",
+      "name": "TestHealthzIgnoresTheProfile"
+    },
+    {
+      "path": "cmd/partner-mock/main_test.go",
+      "name": "TestConfigExposesTheEffectiveProfile"
+    },
+    {
+      "path": "cmd/partner-mock/main_test.go",
+      "name": "TestQuoteRespondsWithAQuoteWhenThePartnerIsHealthy"
+    },
+    {
+      "path": "cmd/partner-mock/main_test.go",
+      "name": "TestQuoteFailsWithTheConfiguredStatus"
+    },
+    {
+      "path": "cmd/partner-mock/main_test.go",
+      "name": "TestQuoteAppliesTheProfileLatency"
+    },
+    {
+      "path": "cmd/partner-mock/main_test.go",
+      "name": "TestQuoteGivesUpWhenTheClientGivesUp"
+    },
+    {
+      "path": "internal/partner/client_test.go",
+      "name": "TestQuoteReadsThePartnerResponse"
+    },
+    {
+      "path": "internal/partner/client_test.go",
+      "name": "TestQuoteIdentifiesThePartnerThatFailed"
+    },
+    {
+      "path": "internal/partner/client_test.go",
+      "name": "TestQuoteFailsOnUnreadableResponse"
+    },
+    {
+      "path": "internal/partner/client_test.go",
+      "name": "TestQuoteHonoursCancellation"
+    },
+    {
+      "path": "internal/platform/config_test.go",
+      "name": "TestInvalidConfigFails"
+    },
+    {
+      "path": "internal/platform/config_test.go",
+      "name": "TestDefaultConfigPointsAtTheComposeEnvironment"
+    },
+    {
+      "path": "internal/platform/config_test.go",
+      "name": "TestConfigReadsPartnersAndTenantsFromTheEnvironment"
+    },
+    {
+      "path": "internal/platform/config_test.go",
+      "name": "TestTelemetryIsOnByDefault"
+    },
+    {
+      "path": "internal/platform/config_test.go",
+      "name": "TestTelemetryReadsTheStandardOTelVariables"
+    },
+    {
+      "path": "internal/platform/config_test.go",
+      "name": "TestTelemetryCanBeTurnedOff"
+    },
+    {
+      "path": "internal/platform/config_test.go",
+      "name": "TestTelemetryOffSkipsEndpointValidation"
+    },
+    {
+      "path": "internal/quotation/handler_test.go",
+      "name": "TestQuotesReturnsAggregatedQuotes"
+    },
+    {
+      "path": "internal/quotation/handler_test.go",
+      "name": "TestQuotesRejectsRequestWithoutTenant"
+    },
+    {
+      "path": "internal/quotation/handler_test.go",
+      "name": "TestQuotesRejectsUnknownBroker"
+    },
+    {
+      "path": "internal/quotation/handler_test.go",
+      "name": "TestQuotesRejectsInvalidBody"
+    },
+    {
+      "path": "internal/quotation/handler_test.go",
+      "name": "TestQuotesResponds502WithTheNameOfThePartnerThatWentDown"
+    },
+    {
+      "path": "internal/quotation/handler_test.go",
+      "name": "TestHealthz"
+    },
+    {
+      "path": "internal/quotation/request_test.go",
+      "name": "TestNormalizeFillsDefaultsAndTidiesUp"
+    },
+    {
+      "path": "internal/quotation/request_test.go",
+      "name": "TestNormalizeRejectsIncompleteRequest"
+    },
+    {
+      "path": "internal/quotation/service_test.go",
+      "name": "TestQuoteAggregatesTheThreePartnersSortedByPremium"
+    },
+    {
+      "path": "internal/quotation/service_test.go",
+      "name": "TestQuoteCallsThePartnersSerially"
+    },
+    {
+      "path": "internal/quotation/service_test.go",
+      "name": "TestOnePartnerDownBringsDownTheWholeRequest"
+    },
+    {
+      "path": "internal/quotation/service_test.go",
+      "name": "TestBrokerGoesInThePartnerRequest"
+    }
+  ],
+  "skip_calls_in_test_sources": 0
+}

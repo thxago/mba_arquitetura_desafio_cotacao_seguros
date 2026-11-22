@@ -1,6 +1,6 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.6 | 22/11/2026**
+**Solution Architecture Document | versão 0.7 | 22/11/2026**
 
 **Estado:** seções 1 a 4 elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e conferência dos sinais no Prometheus/Jaeger. Seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino está **parcialmente implementada**, sem medição da carga padrão do depois nem comprovação das metas de carga. Este documento parcial não declara o desafio concluído.
 
@@ -520,6 +520,8 @@ A suíte original permanece. `NewClient`/`NewService` conservam o caminho básic
 
 `internal\partner\telemetry_test.go` verifica contagem de abertura/sondagem/fechamento e os dois motivos de curto-circuito com relógio virtual. `internal\quotation\telemetry_test.go` diferencia hit/miss/entrada inválida/vencida/erro de GET e SET sem lookup duplicado. `cmd\quotation-api\telemetry_test.go` captura o SDK no boot real, confere os três sinais, prova ausência de spans/observações HTTP nos caminhos evitados e busca valores privados nos atributos/eventos. A conferência em backends reais está na seção 4.6.
 
+**Validação consolidada, 22/11/2026, 19:56:44Z–19:57:14Z.** `make fmt`, `make vet`, `make test`, `make smoke` e `make build` passaram no commit `98e455389cd70da617d6e6912395ef514d61891f`, com Go 1.25.14/windows-amd64. A suíte completa foi executada sem cache de resultados (`GOFLAGS="-count=1 -v"`): 7 pacotes, 96 testes principais, 262 testes/subtestes, zero falhas/skips. [Saída integral dos testes](evidencias/202611221600-make-test.txt), [cinco comandos e códigos de saída](evidencias/202611221600-validacao.txt), [contexto/hashes](evidencias/202611221600-contexto.json) e [comparação AST dos 64 testes originais](evidencias/202611221600-preservacao-testes.json) estão persistidos. A comparação normaliza apenas a extensão de fixture de `PARTNER_TIMEOUTS` já necessária para os endpoints personalizados `a`/`b`; nenhuma asserção original foi retirada. Mocks, loadgen, template/perfis das parceiras e evidências anteriores foram preservados. Os únicos efeitos de `make fmt` eram terminadores/newline final; esses bytes preexistentes foram mantidos para evitar alterações alheias ao escopo. Nenhuma correção funcional foi necessária. Não houve execução de carga ou intervenção em serviços compartilhados; as metas RNF-01 a RNF-03 continuam sem comprovação.
+
 | Prova a produzir nas tarefas de código/evidência | Condição de aceite específica |
 | --- | --- |
 | Breaker com relógio virtual — implementada | Três falhas em janela abrem; tentativa seguinte não executa transporte; após 5 s uma sondagem é admitida; sucesso fecha e falha reabre; cancelamento do consumidor não altera saúde |
@@ -528,6 +530,7 @@ A suíte original permanece. `NewClient`/`NewService` conservam o caminho básic
 | Redis indisponível — implementada | Erro/timeout de GET permite consulta externa protegida; SET falho não descarta proposta fresca; `cache_status=unavailable` e `degraded=true` aparecem no sucesso |
 | Fallback parcial — implementada | Parceira indisponível não apaga propostas válidas das demais; ausentes/motivos aparecem; zero válidas gera 503, não 200 vazio; cancelamento do consumidor interrompe o trabalho |
 | Sinais de negócio — implementada e conferida | Dois Counters e histograma HTTP com valores variando no Prometheus; eventos de cache/curto-circuito no Jaeger, sem spans HTTP evitados nem marcadores privados |
+| Validação consolidada e preservação da base — concluída | Cinco comandos aprovados; suíte completa sem cache ou skips; logs íntegros, testes originais e perfis preservados |
 | Execução padrão do depois | `make down` e `make reproduce`, mesmos defaults e carga; capturar antes de derrubar, conforme seção 3; só ela serve de comparação quantitativa |
 | Estímulo auxiliar de transições | Usar riscos inéditos para não esconder falhas atrás de hits; percorrer a sequência padrão até observar as transições, com comando/janela declarados. Não alterar mocks nem apresentar carga auxiliar como comparação padrão |
 

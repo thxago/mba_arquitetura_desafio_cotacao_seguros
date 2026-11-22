@@ -67,6 +67,29 @@ No span servidor `POST /quotes`, procurar `quotation.cache_hit` (`partner`) e `p
 
 Essa conferência usou os mesmos SDK/exportadores e versões dos backends do Compose, mas processos Windows isolados em loopback, Collector em 14317/18889, Jaeger em 26686 e Prometheus em 19090, scrape de 1 s, upstream controlado e miniredis. O Docker não respondeu; nenhum serviço compartilhado foi reiniciado. Os processos auxiliares foram encerrados. **Não é a carga padrão nem evidência de desempenho do depois**; mocks, perfis, gerador e baseline foram preservados.
 
+## Validação da implementação
+
+Em **22/11/2026, 19:56:44Z–19:57:14Z**, sobre o commit `98e455389cd70da617d6e6912395ef514d61891f`, passaram `make fmt`, `make vet`, `make test`, `make smoke` e `make build`, com Go 1.25.14 no Windows. A suíte completa rodou com `GOFLAGS="-count=1 -v"`: **7 pacotes, 96 testes principais e 262 testes/subtestes aprovados**, sem skips, falhas ou reaproveitamento do cache de resultados.
+
+| Evidência | Conteúdo |
+| --- | --- |
+| [Saída completa de make test](docs/evidencias/202611221600-make-test.txt) | Todos os testes e subtestes, incluindo a suíte original e os novos mecanismos |
+| [Saída dos cinco comandos](docs/evidencias/202611221600-validacao.txt) | stdout/stderr completos e código de saída de cada comando |
+| [Contexto e integridade](docs/evidencias/202611221600-contexto.json) | Commit, ferramentas, horários, opções, contagens e hashes dos arquivos preservados |
+| [Preservação dos testes originais](docs/evidencias/202611221600-preservacao-testes.json) | Comparação AST dos 64 testes originais com o commit oficial `cbc3c1ee7f595d066d44fa2825c019c74da8bc6d`, sem chamadas de Skip |
+
+As provas determinísticas já existentes incluem `TestBreakerOpensAndRecoversWithOneHalfOpenProbe` e `TestCacheIsolatesTenantsAndNormalizedHitPreservesOriginalExpiry`, com relógio virtual, além de fallback e integração do boot. Não foi necessário acrescentar testes redundantes ou alterar código para obter aprovação.
+
+Mocks, loadgen e perfis das parceiras permanecem iguais à base oficial; os artefatos anteriores não foram modificados. Na comparação AST, somente a entrada `PARTNER_TIMEOUTS` já acrescentada à fixture do teste de configuração com parceiras `a`/`b` foi normalizada; asserções originais permanecem. Após `make fmt`, foram descartadas apenas mudanças de terminadores e newline final em arquivos preexistentes, sem mudanças de tokens Go. A validação não iniciou nem reiniciou serviços compartilhados e **não substitui a comparação de carga do depois**, ainda pendente.
+
+Para repetir a suíte sem cache e com todos os casos visíveis:
+
+```powershell
+$env:GOFLAGS = '-count=1 -v'
+make test
+Remove-Item Env:\GOFLAGS
+```
+
 ## Enunciado original
 
 Uma plataforma de cotação de seguro auto que funciona mal: consulta três seguradoras parceiras em série, aguarda sem timeout configurado e devolve erro inteiro quando qualquer uma falha. Tudo o que é preciso para reproduzir essa degradação já está neste repositório; nada do que a resolve está.

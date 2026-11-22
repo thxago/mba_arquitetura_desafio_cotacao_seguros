@@ -1,0 +1,131 @@
+{
+  "started_at": "2026-11-22T19:56:44.670662+00:00",
+  "implementation_commit": "98e455389cd70da617d6e6912395ef514d61891f",
+  "official_baseline_commit": "cbc3c1ee7f595d066d44fa2825c019c74da8bc6d",
+  "go_version": "go version go1.25.14 windows/amd64",
+  "make_version": "GNU Make 4.4.1",
+  "commands": [
+    {
+      "command": "make fmt",
+      "GOFLAGS": "",
+      "started_at": "2026-11-22T19:56:45.015852+00:00",
+      "finished_at": "2026-11-22T19:56:47.532258+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": "make vet",
+      "GOFLAGS": "",
+      "started_at": "2026-11-22T19:56:47.678973+00:00",
+      "finished_at": "2026-11-22T19:56:53.212749+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": "make test",
+      "GOFLAGS": "-count=1 -v",
+      "started_at": "2026-11-22T19:56:53.214205+00:00",
+      "finished_at": "2026-11-22T19:57:04.995341+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": "make smoke",
+      "GOFLAGS": "",
+      "started_at": "2026-11-22T19:57:05.000185+00:00",
+      "finished_at": "2026-11-22T19:57:07.110158+00:00",
+      "exit_code": 0
+    },
+    {
+      "command": "make build",
+      "GOFLAGS": "",
+      "started_at": "2026-11-22T19:57:07.111132+00:00",
+      "finished_at": "2026-11-22T19:57:14.470333+00:00",
+      "exit_code": 0
+    }
+  ],
+  "test_environment": "Local Windows Go tests; controlled HTTP/RESP and virtual clocks. No shared Docker services started, stopped or reset.",
+  "formatter_compatibility": {
+    "note": "make fmt succeeded; only existing line endings/missing final newlines changed. Restored those bytes to preserve the base; no Go token changes.",
+    "files": [
+      "cmd/loadgen/config.go",
+      "cmd/loadgen/config_test.go",
+      "cmd/loadgen/main.go",
+      "cmd/loadgen/report.go",
+      "cmd/loadgen/report_test.go",
+      "cmd/loadgen/request.go",
+      "cmd/loadgen/run.go",
+      "cmd/loadgen/run_test.go",
+      "cmd/partner-mock/behavior.go",
+      "cmd/partner-mock/behavior_test.go",
+      "cmd/partner-mock/config.go",
+      "cmd/partner-mock/config_test.go",
+      "cmd/partner-mock/feasibility_test.go",
+      "cmd/partner-mock/main.go",
+      "cmd/partner-mock/main_test.go",
+      "cmd/quotation-api/main.go",
+      "cmd/quotation-api/main_test.go",
+      "cmd/quotation-api/telemetry_test.go",
+      "internal/cache/redis.go",
+      "internal/cache/redis_test.go",
+      "internal/partner/client.go",
+      "internal/partner/client_test.go",
+      "internal/partner/resilience_test.go",
+      "internal/partner/telemetry_test.go",
+      "internal/platform/config.go",
+      "internal/platform/config_test.go",
+      "internal/platform/httpjson.go",
+      "internal/platform/telemetry.go",
+      "internal/quotation/cache.go",
+      "internal/quotation/cache_test.go",
+      "internal/quotation/handler.go",
+      "internal/quotation/handler_test.go",
+      "internal/quotation/request.go",
+      "internal/quotation/request_test.go",
+      "internal/quotation/service.go",
+      "internal/quotation/service_test.go",
+      "internal/quotation/telemetry_test.go"
+    ]
+  },
+  "test_results": {
+    "packages_passed": 7,
+    "top_level_tests_passed": 96,
+    "tests_and_subtests_passed": 262,
+    "skipped": 0,
+    "failed": 0,
+    "cached": false
+  },
+  "protected_sources_sha256_normalized_lf": {
+    "cmd/loadgen/config.go": "cc6de9550208e901e3d2e5e95769b3d38643016f84b1e35f5fa85ff242c483f8",
+    "cmd/loadgen/config_test.go": "18321b866f1e341d0c9e4f649633cfc15bcf65248777c9103ee5d95bbf57189d",
+    "cmd/loadgen/main.go": "f4619b6bbdfa24ce19c031464bf465c7a125bb8cedf306a5d2bf6f4736d74e0b",
+    "cmd/loadgen/report.go": "66b1828bd97b99b14c093f4425aff961e780ef25a04d3717597305a14cbe4371",
+    "cmd/loadgen/report_test.go": "eeaa7fa30799321411b17dde0a9f1adb220a96f9a04923fbcc8fd039e26ce455",
+    "cmd/loadgen/request.go": "2fe344b63da8d3e0e2c1baf6972e4a6b439d577692b611ff2311b8950136501b",
+    "cmd/loadgen/run.go": "6a3d14cd66e500bf8329081fc4aba2acf6a38d11e18347062db475b2ccae4969",
+    "cmd/loadgen/run_test.go": "60c105eb0554b24bac57da878a6a567710e019da58808238a57e680d65c16251",
+    "cmd/partner-mock/behavior.go": "7bca848534ccce137ee2b49610263f63fe4eeee6a744b64bfe4dca8ee5f99cbf",
+    "cmd/partner-mock/behavior_test.go": "564816cafb9fe59c513e7eab14c7890ca0f4a144f42b1aff31488a29731913e1",
+    "cmd/partner-mock/config.go": "c4b54061b9cfa5a32567e810d3ec24ee2833005eee7747ccd18a86391f9d79a8",
+    "cmd/partner-mock/config_test.go": "8ece0971a5d38da89e79d095ed4f09f61f2257f567119b4d01b1a9c2480cb009",
+    "cmd/partner-mock/feasibility_test.go": "d5fa2c180e5653c6b577154b6c97215b2edb51160573e1cf427533bfe0fe2ab3",
+    "cmd/partner-mock/main.go": "7a4ba9ad7c2be81d904f81f54ae1326e04a288ea71af0688f0e7cd844d54bf27",
+    "cmd/partner-mock/main_test.go": "2bfb1ea0fb23174e61094048f69255c2b71aacf7a26f421299526dfc9e0fc219"
+  },
+  "partner_profiles_and_shared_template_unchanged": true,
+  "previous_evidence_sha256": {
+    "docs/evidencias/202611221350/metrics-phase-1.json": "9bbd3bdf8b6969a884c13f2de692546d13d2a8bfcc9f3f30430cbf160669b445",
+    "docs/evidencias/202611221350/metrics-phase-2.json": "c35916a893a557a90c4f9fb3137e82f334910a14446c929226e23fa30d589878",
+    "docs/evidencias/202611221350/traces.json": "3ef6c1937fc952e6d43cd624df5e824719ea5bddfabf062cc1617e431913c0e0",
+    "docs/evidencias/202611221350/verification.json": "257f88726697512ade770031d90b2eb2a3a7b3b09187ab79d2141498ba7a7d53",
+    "docs/evidencias/README.md": "2c5ef31ac8d91da3d1483b0b396f62fab8dc05418bad1fcea5e94e6f8fec7ca3",
+    "docs/evidencias/antes-captura.json": "1c3c51234606beab8fffbd9059124a89c059ff8d142d96d42a3ce7a180cdbb74",
+    "docs/evidencias/antes-compose.json": "e775a7667f4055e3cf2bf9ec03c50c52ab418fca2b2193c7d78d029690d19532",
+    "docs/evidencias/antes-contexto.json": "3e6c48cd438f4cf44b7d28051831126266b585e06ac1bebaf466c52d2143930f",
+    "docs/evidencias/antes-metricas.prom": "a658510b5447dbfd1ce8d3edb57f5acc261bb54dfd81c31f05539274f6b04f3c",
+    "docs/evidencias/antes-p95-prometheus.json": "d6742980b97f94d6d2b20850de3babc28aef6ad129149c32cdf90ceb43795e16",
+    "docs/evidencias/antes-p95.png": "a0203bebfeba5d8d0e0f88deb0ad657ac22af3fa988c068e37a6f109349fd927",
+    "docs/evidencias/antes-reproduce.txt": "074755b4c79d911037b324f1b1127e50a1329cfba295f607a8099c1b66d8563c",
+    "docs/evidencias/antes-trace-erro.json": "365df2318a69a6998b02b6595f9b59087189a1a1c56470948269e63e3e834128",
+    "docs/evidencias/antes-trace-lento.json": "f3878c6549cccaa3512869f75efd48ecae43da81dd384117441e288befb31305",
+    "docs/evidencias/antes-traces.json": "a68b9a4e295ee124bf1c871cb06cab73201dec5442891b485e2df8f8f6d28981"
+  },
+  "finished_at": "2026-11-22T19:57:16.729507+00:00"
+}
