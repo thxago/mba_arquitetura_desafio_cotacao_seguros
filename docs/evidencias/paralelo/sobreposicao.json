@@ -1,0 +1,26 @@
+{
+  "traceID": "f5637da2d247b8ed020c6fed5618a2f3",
+  "serverDurationMs": 1638.574,
+  "sumClientDurationMs": 1964.546,
+  "commonOverlapMs": 148.114,
+  "clients": [
+    {
+      "partner": "partner-slow",
+      "startOffsetMs": 8.24,
+      "durationMs": 1628.885,
+      "httpStatus": 200
+    },
+    {
+      "partner": "partner-flaky",
+      "startOffsetMs": 8.419,
+      "durationMs": 187.547,
+      "httpStatus": 200
+    },
+    {
+      "partner": "partner-degrading",
+      "startOffsetMs": 11.927,
+      "durationMs": 148.114,
+      "httpStatus": 200
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "__name__": "prumo_breaker_transitions_total",
+          "exported_job": "quotation-api",
+          "from": "closed",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-degrading",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0",
+          "to": "open"
+        },
+        "values": [
+          [
+            1795389867,
+            "1"
+          ],
+          [
+            1795389872,
+            "1"
+          ],
+          [
+            1795389877,
+            "1"
+          ],
+          [
+            1795389882,
+            "1"
+          ],
+          [
+            1795389887,
+            "1"
+          ],
+          [
+            1795389892,
+            "1"
+          ],
+          [
+            1795389897,
+            "1"
+          ],
+          [
+            1795389902,
+            "1"
+          ],
+          [
+            1795389907,
+            "1"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_breaker_transitions_total",
+          "exported_job": "quotation-api",
+          "from": "closed",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-flaky",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0",
+          "to": "open"
+        },
+        "values": [
+          [
+            1795389867,
+            "1"
+          ],
+          [
+            1795389872,
+            "1"
+          ],
+          [
+            1795389877,
+            "1"
+          ],
+          [
+            1795389882,
+            "1"
+          ],
+          [
+            1795389887,
+            "1"
+          ],
+          [
+            1795389892,
+            "1"
+          ],
+          [
+            1795389897,
+            "1"
+          ],
+          [
+            1795389902,
+            "1"
+          ],
+          [
+            1795389907,
+            "1"
+          ]
+        ]
+      }
+    ]
+  }
+}

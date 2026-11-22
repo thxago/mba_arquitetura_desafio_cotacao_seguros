@@ -1,0 +1,15 @@
+$ make down
+docker compose down -v
+
+exit_code=0
+
+$ make reproduce
+docker compose up -d --build --wait
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.71kB 0.1s done
+#1 DONE 0.1s
+failed to solve: input/output error
+
+make: *** [Makefile:32: reproduce] Error 1
+
+exit_code=2

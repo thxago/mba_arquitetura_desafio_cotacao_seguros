@@ -327,3 +327,53 @@ Após aguardar export/scrape, consultar Prometheus com as PromQL acima, serviço
 O [registro de integridade](depois-integridade.json) relaciona SHA-256 dos novos artefatos e as verificações de sete categorias, 210 traces padrão, 40 auxiliares, propostas úteis e ausência de chamadas evitadas. Os hashes dos artefatos anteriores estão em `depois-contexto.json`; todos permaneceram idênticos, com a única exceção deste índice, que recebeu somente o apêndice do depois. Código Go, dependências, Makefile, Compose, perfis, mocks e gerador não foram alterados.
 
 Todos os exports e gráficos foram persistidos e conferidos **antes do encerramento**. Em seguida foi executado `make down` somente neste projeto; [saída e confirmação de nenhum container remanescente do projeto](depois-encerramento.txt). O [snapshot auxiliar dos serviços](auxiliar-servicos.jsonl) e o snapshot padrão preservam a prova de que a captura ocorreu com os serviços ativos. Nenhuma limpeza global, reinício do Docker ou alteração de recursos de outros projetos foi realizada. As evidências em arquivo continuam verificáveis sem a retenção efêmera do Prometheus/Jaeger.
+
+## Bônus paralelo
+
+Nova coleta de **22/11/2026**, independente dos artefatos acima. D-05 do [SAD](../sad.md#49-d-05--agregação-paralela-no-caminho-resiliente) registra a decisão antes da implementação: um worker por parceira, cache → breaker → HTTP, slots exclusivos e junção antes de validade/ordenação/fallback. Não há retry, bulkhead, fila ou limite global de HTTP. Erro de parceira não cancela irmãs; cancelamento do consumidor alcança todos os workers, aguardados antes do retorno, sem desfazer consultas já admitidas.
+
+**Identidade e execução.** [Contexto](paralelo/contexto.json), [patch das fontes](paralelo/implementacao.patch), [Compose efetivo](paralelo/compose.json) e [saída integral](paralelo/reproduce.txt). HEAD `5209e410db1d9200b6fcc1472384b0be4505506a` não contém o bônus sozinho: aplicar o patch ao HEAD e conferir os hashes das fontes. Mesmo `make down; make reproduce`, sem overrides, dez pedidos sequenciais e depois 200/50, cinco riscos, timeouts/seeds/perfis/gerador preservados. Os hashes anteriores foram registrados antes da coleta; este índice recebe somente o apêndice.
+
+| Indicador | Original | Resiliente serial F-09 | Paralelo F-10 |
+| --- | --- | --- | --- |
+| Sequencial, úteis | 5/10 | 10/10 | 10/10 |
+| Sequencial, p95 empírico | 2,03 s | 2,04 s | **1,68 s** |
+| Carga, úteis | 120/200 | 200/200 | **200/200** |
+| Carga, p95 empírico | 8,01 s | 1,70 s | **1,71 s** |
+| Carga, vazão/duração | 8,1 req/s / 24,81 s | 114,1 req/s / 1,75 s | **98,0 req/s / 2,04 s** |
+| Carga, completas/parciais inferidas | Contrato antigo tudo-ou-nada | 189/11 | **160/40** |
+| HTTP efetivos, ambas as fases | Não usado nesta comparação de custo | 67 | **123** |
+| Cache hits/misses/GET erros, ambas as fases | Sem integração | 561/38/31 | **503/30/97** |
+| Erros SET | Sem integração | 0 | **3** |
+
+O ganho de **17,65%** é do p95 da fase sequencial que começa com cache frio, não de uma carga composta só de misses: são dez pedidos para cinco riscos. A carga aquecida **não melhorou**; houve menor vazão, mais parciais e mais HTTP. RNF-01 a RNF-03 continuam atendidos nesta amostra sob P-02, não representam SLA. Host compartilhado, horários diferentes e curta duração impedem atribuir cada variação exclusivamente ao código. Não se afinou prazo/carga para favorecer o bônus.
+
+**Sobreposição comprovada.** [Trace frio JSON](paralelo/trace-paralelo.json), [tempos derivados](paralelo/sobreposicao.json) e [export completo dos 210 traces](paralelo/traces.json). Trace `f5637da2d247b8ed020c6fed5618a2f3`:
+
+| Parceira | Início relativo ao servidor | Duração HTTP |
+| --- | --- | --- |
+| slow | 8,240 ms | 1.628,885 ms |
+| flaky | 8,419 ms | 187,547 ms |
+| degrading | 11,927 ms | 148,114 ms |
+
+As três se sobrepõem por **148,114 ms**. Servidor: **1.638,574 ms**; soma dos clientes: **1.964,546 ms**. Há 25 traces com interseção dos três spans; isso prova concorrência independentemente da oscilação do p95. [Trace de cache](paralelo/trace-cache.json) e [trace com bloqueio](paralelo/trace-breaker.json) também foram preservados nesta execução.
+
+**Resultados e sinais.** [Comparação derivada](paralelo/comparacao.json), [metadados/consultas/URLs](paralelo/captura.json), [snapshot Prometheus](paralelo/metricas.prom), [lookups](paralelo/cache-lookups-prometheus.json), [hit rate](paralelo/cache-hit-rate-prometheus.json), [transições](paralelo/breaker-transitions-prometheus.json), [logs API](paralelo/api.txt) e [serviços ativos](paralelo/servicos.jsonl). O contador registra 630 oportunidades, hits/(hits+misses)=**94,37%**, mas hits/todas=**79,84%**; excluir 97 erros da conta comercial seria enganoso. Três erros SET mantiveram propostas frescas válidas, sem contar lookup extra. Foram 167 completas/43 parciais no total (7/3 sequencial, 160/40 carga), 151 traces sem HTTP com cache e quatro com curto-circuito. Classificação usa hits sobreviventes + HTTP 200 dos mocks válidos dentro do TTL; não é captura de corpos pelo loadgen.
+
+**p95 comparável.** [PNG](paralelo/p95.png) e [amostras JSON](paralelo/p95-prometheus.json). Janela UTC **23:23:52–23:25:11**, mesmos 79 s, rate de 1 min, passo de 5 s e eixo Y 0–10 s. Pico estimado do histograma: **2,157 s**, não os 1,71 s empíricos; lacunas/NaN não foram preenchidos como zero. PromQL idêntica à do antes e do serial:
+
+```promql
+histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name="quotation-api",http_request_method="POST",http_route="/quotes"}[1m])))
+```
+
+**Verificações novas, não reutilização da suíte antiga.** [Cinco comandos e suíte sem cache](paralelo/checks.txt), [hashes das fontes](paralelo/checks.json), [64 testes originais por AST](paralelo/preservacao-testes.json), [race detector completo](paralelo/race.txt) e [Dockerfile do teste isolado](paralelo/Dockerfile.race). Foram 98 testes principais/264 com subtestes, sete pacotes, sem falhas/skips/cache na suíte final. Os testes novos provam 3/1/2 s sobrepostos em 3 s, origem/tenant/ordenação e cancelamento anterior sem trabalho; testes existentes ajustados usam doubles seguros e falhas por identidade, não ordem de execução. No Windows, `-race` não pôde rodar sem CGO/compilador C; executou-se em Linux com `CGO_ENABLED=1 go test -race -count=1 -timeout=180s ./...`. Para reproduzir esse teste, com espaço e uso do Docker autorizados:
+
+```powershell
+docker build --progress plain --file docs\evidencias\paralelo\Dockerfile.race --tag prumo-task16-race:local .
+```
+
+**Custo e operação.** As 123 tentativas representariam R$ 4,92 a R$ 0,04/HTTP, contra R$ 2,68 seriais: **R$ 2,24 adicionais**, se todas faturadas. Não é fatura nem economia. P-01/h=20%/40%, validade, TCO e preços permanecem condicionais; paralelismo não reduz automaticamente consultas, faturabilidade ou investimento. A menor cobertura pode importar comercialmente apesar de 100% de respostas úteis sob P-02.
+
+**Incidente de coleta e encerramento.** Duas tentativas pararam antes de subir serviços ou executar carga, com disco C: cheio e banco de metadados Docker em erro de I/O: [primeiro log](paralelo/tentativa-bloqueada-reproduce.txt), [contexto](paralelo/tentativa-bloqueada-contexto.json), [segundo log](paralelo/tentativa-2-bloqueada-reproduce.txt), [contexto](paralelo/tentativa-2-bloqueada-contexto.json). A coleta só continuou após liberação de espaço e recuperação/reinício manual seguro do Docker compartilhado. Não foi feito a limpeza global/reinício; removido apenas sua imagem temporária de race depois da recuperação. Esses incidentes não foram apresentados como execuções de carga.
+
+Exports, gráfico e snapshot ativo foram preservados antes de `make down` somente deste projeto; [confirmação de nenhum container do projeto remanescente](paralelo/encerramento.txt). [Integridade nova](paralelo/integridade.json) identifica bytes da captura, fontes, testes e preservação do acervo anterior, sem regravar manifests antigos. Normalização futura de LF/CRLF pelo Git pode mudar o hash bruto do checkout; não confundir com alteração dos valores medidos.

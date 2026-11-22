@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -139,15 +140,17 @@ func TestResilientHTTPContract(t *testing.T) {
 		{"unavailable without Redis", 3, true, statusUnavailable, http.StatusServiceUnavailable},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			calls := 0
+			var calls atomic.Int32
 			store := newMemoryCache()
 			if scenario.redisError {
 				store.getErr, store.setErr = errors.New("GET failed"), errors.New("SET failed")
 			}
 			service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
-				calls++
-				if calls <= scenario.failed {
-					return partner.Quote{}, &partner.Error{Partner: p.Name, Kind: "upstream_error", Reason: "private details"}
+				calls.Add(1)
+				for _, failed := range threePartners[:scenario.failed] {
+					if p.Name == failed.Name {
+						return partner.Quote{}, &partner.Error{Partner: p.Name, Kind: "upstream_error", Reason: "private details"}
+					}
 				}
 				return originalQuote(p, 300), nil
 			}), store, 300*time.Second)
@@ -166,8 +169,8 @@ func TestResilientHTTPContract(t *testing.T) {
 			}
 			if body.Status != scenario.status || body.Degraded != (scenario.failed > 0 || scenario.redisError) ||
 				body.CacheStatus != cacheStatus || len(body.Quotes) != 3-scenario.failed ||
-				len(body.UnavailablePartners) != scenario.failed || calls != 3 || body.TenantID != "corretora-a" {
-				t.Fatalf("contract lost completeness, cache state or candidates: %+v calls=%d", body, calls)
+				len(body.UnavailablePartners) != scenario.failed || calls.Load() != 3 || body.TenantID != "corretora-a" {
+				t.Fatalf("contract lost completeness, cache state or candidates: %+v calls=%d", body, calls.Load())
 			}
 			for i, missing := range body.UnavailablePartners {
 				if missing.Partner != threePartners[i].Name || missing.Reason != "upstream_error" {
@@ -209,13 +212,13 @@ func TestResilientRoutesPreserveValidationAndCoverage(t *testing.T) {
 		{"default coverage", "corretora-a", strings.Replace(validBody, "comprehensive", "", 1), "comprehensive", http.StatusOK},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			calls := 0
+			var calls atomic.Int32
 			store := newMemoryCache()
 			service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, raw any) (partner.Quote, error) {
-				calls++
+				calls.Add(1)
 				request := raw.(partnerRequest)
 				if request.Broker != scenario.tenant || request.Coverage != scenario.coverage || request.Vehicle.Plate != "ABC1D23" {
-					t.Fatalf("tenant/normalized risk not preserved: %+v", request)
+					t.Errorf("tenant/normalized risk not preserved: %+v", request)
 				}
 				return originalQuote(p, 300), nil
 			}), store, 300*time.Second)
@@ -224,7 +227,7 @@ func TestResilientRoutesPreserveValidationAndCoverage(t *testing.T) {
 			if recorder.Code != scenario.code {
 				t.Fatalf("HTTP %d, want %d: %s", recorder.Code, scenario.code, recorder.Body)
 			}
-			if scenario.code != http.StatusOK && (calls != 0 || store.gets != 0 || store.sets != 0) {
+			if scenario.code != http.StatusOK && (calls.Load() != 0 || store.gets != 0 || store.sets != 0) {
 				t.Fatal("invalid request reached cache/partners")
 			}
 			health := httptest.NewRecorder()

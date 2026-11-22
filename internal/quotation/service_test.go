@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -160,9 +161,9 @@ func TestPartialQuoteContinuesAfterFailuresAndPreservesSortedOrigins(t *testing.
 	for _, reason := range []string{"timeout", "circuit_open", "half_open_limit", "upstream_error", "invalid_response", "expired", "private_reason"} {
 		t.Run(reason, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				var calls []string
+				calls := make(chan string, len(threePartners))
 				service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
-					calls = append(calls, p.Name)
+					calls <- p.Name
 					if p.Name == threePartners[0].Name {
 						return partner.Quote{}, fmt.Errorf("wrapped: %w", &partner.Error{
 							Partner: "untrusted-name", Kind: reason, Reason: "http://internal/private-details",
@@ -186,8 +187,15 @@ func TestPartialQuoteContinuesAfterFailuresAndPreservesSortedOrigins(t *testing.
 					t.Fatalf("unexpected partial response: %+v err=%v", response, err)
 				}
 				wantCalls := []string{threePartners[0].Name, threePartners[1].Name, threePartners[2].Name}
-				if !reflect.DeepEqual(calls, wantCalls) {
-					t.Fatalf("failed partner stopped or retried aggregation: %v", calls)
+				close(calls)
+				var gotCalls []string
+				for name := range calls {
+					gotCalls = append(gotCalls, name)
+				}
+				slices.Sort(gotCalls)
+				slices.Sort(wantCalls)
+				if !reflect.DeepEqual(gotCalls, wantCalls) {
+					t.Fatalf("failed partner stopped or retried aggregation: %v", gotCalls)
 				}
 				for i, name := range []string{"partner-flaky", "partner-degrading"} {
 					quote := response.Quotes[i]
@@ -216,26 +224,76 @@ func TestConsumerCancellationDiscardsPartialResultsAndStopsPurchasing(t *testing
 					ctx, cancel = context.WithTimeout(context.Background(), 50*time.Millisecond)
 				}
 				defer cancel()
-				calls := 0
+				var calls atomic.Int32
+				started := make(chan struct{}, len(threePartners))
 				store := newMemoryCache()
 				service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
-					calls++
-					if calls == 2 {
-						if deadline {
-							<-ctx.Done()
-						} else {
-							cancel()
-						}
-					}
-					return originalQuote(p, 300), nil
+					calls.Add(1)
+					started <- struct{}{}
+					<-ctx.Done()
+					return partner.Quote{}, ctx.Err()
 				}), store, 300*time.Second)
+				if !deadline {
+					go func() {
+						for range threePartners {
+							<-started
+						}
+						cancel()
+					}()
+				}
 				response, err := service.Quote(ctx, "corretora-a", validRequest())
 				if !errors.Is(err, ctx.Err()) || err == nil || len(response.Quotes) != 0 ||
-					calls != 2 || store.gets != 2 || store.sets != 1 {
+					calls.Load() != 3 || store.gets != 3 || store.sets != 0 {
 					t.Fatalf("canceled consumer got partial output or bought more work: response=%+v calls=%d writes=%d err=%v",
-						response, calls, store.sets, err)
+						response, calls.Load(), store.sets, err)
 				}
+
 			})
 		})
+	}
+}
+
+func TestResilientAggregationOverlapsPartnersAndPreservesOrigins(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		delays := map[string]time.Duration{
+			"partner-slow": 3 * time.Second, "partner-flaky": time.Second, "partner-degrading": 2 * time.Second,
+		}
+		service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, raw any) (partner.Quote, error) {
+			if raw.(partnerRequest).Broker != "corretora-a" {
+				t.Error("worker lost tenant")
+			}
+			q := originalQuote(p, 300)
+			q.QuoteID = p.Name
+			q.PremiumCents = defaultPremiums()[p.Name]
+			time.Sleep(delays[p.Name])
+			return q, nil
+		}), newMemoryCache(), 300*time.Second)
+		start := time.Now()
+		response, err := service.Quote(context.Background(), "corretora-a", validRequest())
+		if err != nil || response.Status != statusComplete || len(response.Quotes) != 3 ||
+			time.Since(start) != 3*time.Second {
+			t.Fatalf("partners did not overlap: response=%+v elapsed=%s err=%v", response, time.Since(start), err)
+		}
+		for i, name := range []string{"partner-flaky", "partner-degrading", "partner-slow"} {
+			q := response.Quotes[i]
+			if q.Partner != name || q.QuoteID != name || q.PremiumCents != defaultPremiums()[name] ||
+				q.Source != "partner" || q.ValidForSeconds != 297 || q.AgeSeconds != 3 {
+				t.Fatalf("completion order detached origin or validity: %+v", q)
+			}
+		}
+	})
+}
+
+func TestCanceledConsumerDoesNotStartParallelWork(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	store := newMemoryCache()
+	service := cachedService(t, threePartners, cacheQuoterFunc(func(context.Context, platform.Partner, any) (partner.Quote, error) {
+		t.Error("started HTTP for canceled consumer")
+		return partner.Quote{}, nil
+	}), store, 300*time.Second)
+	response, err := service.Quote(ctx, "corretora-a", validRequest())
+	if !errors.Is(err, context.Canceled) || len(response.Quotes) != 0 || store.gets != 0 || store.sets != 0 {
+		t.Fatalf("canceled request started work: %+v %v", response, err)
 	}
 }

@@ -8,11 +8,11 @@ O coração da solução é proteger a fronteira com as seguradoras: timeout lim
 
 | Estado | Escopo |
 | --- | --- |
-| Implementado e exercitado | Timeout, Sony gobreaker v2.4.0, cache Redis com go-redis v9.12.1, fallback completo/parcial/recusa, metadados de origem/validade, métricas e eventos OTel, testes determinísticos e integração no boot |
-| Medido no laboratório | Baseline próprio, depois com a carga padrão e experimento auxiliar separado; sete categorias de evidência preservadas |
+| Implementado e exercitado | Timeout, Sony gobreaker v2.4.0, cache Redis com go-redis v9.12.1, fallback completo/parcial/recusa, metadados de origem/validade, métricas e eventos OTel, agregação paralela por parceira (bônus D-05), testes determinísticos e integração no boot |
+| Medido no laboratório | Baseline próprio, depois serial, nova coleta paralela com a carga padrão e experimento auxiliar separado; sete categorias de evidência anteriores preservadas |
 | Proposta, não provisionada/homologada | Hospedagem em cloud sob política de residência brasileira, autenticação, auditoria imutável de cinco anos, alertas/notificações, operação, backups e recuperação geográfica; [SAD, seções 5–7](docs/sad.md#5-implementação) |
 | Estimativa, não economia realizada | Pessoal, infraestrutura, auditoria, ensaios de DR e payback condicional com preços hipotéticos; [SAD, seção 8](docs/sad.md#8-tecnologias-custos-e-pessoal-tco) |
-| Não implementado | Retry, bulkhead, rate limiting, filas, Kubernetes e paralelização opcional; a agregação continua serial |
+| Não implementado | Retry, bulkhead, rate limiting, filas, Kubernetes e limite global de admissões concorrentes |
 
 O módulo e a base foram preservados; mocks, loadgen e perfis das parceiras não foram alterados para produzir o resultado. O enunciado descreve o **baseline**. A revisão de coerência foi concluída.
 
@@ -177,14 +177,16 @@ No span servidor `POST /quotes`, eventos `quotation.cache_hit` (`partner`, somen
 
 Comparação própria com mesmos defaults/perfis; carga padrão de 200 requisições/50 em voo:
 
-| Indicador | Antes, 17/11/2026 | Depois, 22/11/2026 |
-| --- | --- | --- |
-| Sucesso útil | 120/200 | 200/200 |
-| p95 empírico | 8,01 s | 1,70 s |
-| Vazão total | 8,1 req/s | 114,1 req/s |
-| Duração da fase | 24,81 s | 1,75 s |
+| Indicador | Antes, 17/11/2026 | Depois serial, 22/11/2026 | Bônus paralelo, 22/11/2026 |
+| --- | --- | --- | --- |
+| Sucesso útil | 120/200 | 200/200 | 200/200 |
+| p95 empírico | 8,01 s | 1,70 s | 1,71 s |
+| Vazão total | 8,1 req/s | 114,1 req/s | 98,0 req/s |
+| Duração da fase | 24,81 s | 1,75 s | 2,04 s |
 
-RNF-01 a RNF-03 foram atingidos **nessa amostra**, sob a hipótese de uma proposta válida ser útil. Cinco riscos repetidos e aquecimento anterior favorecem cache; não é SLA, capacidade sustentada nem hit rate de produção. O p95 sequencial frio ficou praticamente igual: 2,03 s → 2,04 s.
+RNF-01 a RNF-03 foram atingidos **nessas amostras**, sob a hipótese de uma proposta válida ser útil. Cinco riscos repetidos e aquecimento anterior favorecem cache; não é SLA, capacidade sustentada nem hit rate de produção. Na fase sequencial iniciada com cache frio (dez pedidos, cinco riscos; não são todos misses), p95 foi **2,03 s → 2,04 s → 1,68 s**: o bônus reduziu 17,65% frente ao serial. Não melhorou a fase de carga aquecida: p95 ligeiramente maior, menor vazão e completas/parciais de **189/11 → 160/40**. Nas duas fases juntas, HTTP efetivos subiram **67 → 123**, GETs Redis falhos **31 → 97**, com três falhas de SET na nova coleta. São custos/limites observados, não ganhos ocultados.
+
+O [registro do bônus paralelo](docs/evidencias/README.md#bônus-paralelo-task-16) reúne os novos artefatos, decisões e comparações. O [trace frio](docs/evidencias/paralelo/trace-paralelo.json) prova sobreposição das três chamadas; o [gráfico novo](docs/evidencias/paralelo/p95.png) mantém consulta, janela e escala anteriores. Uma goroutine por parceira executa cache → breaker → HTTP; os resultados só são compostos após a junção. Falha de uma não cancela irmãs; cancelamento do consumidor é propagado a todas, sem desfazer consultas já compradas. Isolamento, validade e ordenação são preservados; não há retry ou bulkhead.
 
 O [índice completo](docs/evidencias/README.md#as-sete-evidências) contém comandos/PromQL, artefatos, janelas e legendas das sete categorias:
 
@@ -198,13 +200,13 @@ O [índice completo](docs/evidencias/README.md#as-sete-evidências) contém coma
 | Aquecimento do cache | [Gráfico acumulado](docs/evidencias/auxiliar-cache-hit-rate.png), [PromQL/valores](docs/evidencias/auxiliar-cache-hit-rate-cumulative-prometheus.json) |
 | p95 do POST /quotes | [Antes PNG](docs/evidencias/antes-p95.png), [depois PNG](docs/evidencias/depois-p95.png), [antes JSON](docs/evidencias/antes-p95-prometheus.json), [depois JSON](docs/evidencias/depois-p95-prometheus.json) |
 
-São 210 traces padrão no depois, 196 respostas completas e 14 parciais entre as duas fases. O loadgen original não captura corpos; a classificação é reconstruída dos sinais e complementada por testes do contrato. Houve **31 erros de GET Redis** em 630 oportunidades: 561 hits e 38 misses. Hit rate de leituras saudáveis: 93,66%; participação em todas as oportunidades: 89,05%. Nenhum desses percentuais foi transportado para a conta financeira.
+São 210 traces padrão no depois **serial**, 196 respostas completas e 14 parciais entre as duas fases. O loadgen original não captura corpos; a classificação é reconstruída dos sinais e complementada por testes do contrato. Houve **31 erros de GET Redis** em 630 oportunidades: 561 hits e 38 misses. Hit rate de leituras saudáveis: 93,66%; participação em todas as oportunidades: 89,05%. Nenhum desses percentuais foi transportado para a conta financeira. As sete provas históricas acima não foram substituídas pela nova coleta do bônus.
 
 O [experimento auxiliar de 40 requisições](docs/evidencias/README.md#experimento-auxiliar-separado-da-comparação-padrão) é separado da comparação padrão. Provou aquecimento e `closed→open→half_open→closed`; o meio aberto durou cerca de 187 ms, não foi alongado para aparecer no gráfico. O p95 estimado do histograma (picos 9,702 s/2,007 s) não é o p95 empírico do relatório. Artefatos foram persistidos antes dos resets e do [encerramento somente deste projeto](docs/evidencias/README.md#integridade-e-encerramento).
 
 ### Histórico de verificação e limitações reais
 
-Em 22/11/2026, a validação do commit `98e455389cd70da617d6e6912395ef514d61891f` aprovou os cinco comandos de desenvolvimento, com Go 1.25.14: sete pacotes, 96 testes principais/262 testes e subtestes, sem falha, skip ou cache de resultados. A comparação AST preserva os 64 testes originais, normalizando somente o timeout já acrescentado à fixture com parceiras `a`/`b`. Há testes determinísticos de abertura/recuperação do breaker, isolamento/expiração do cache, fallback e boot real. As alterações posteriores foram documentais; a evidência registra a execução, não uma nova rodada fictícia.
+Em 22/11/2026, a validação do commit `98e455389cd70da617d6e6912395ef514d61891f` aprovou os cinco comandos de desenvolvimento, com Go 1.25.14: sete pacotes, 96 testes principais/262 testes e subtestes, sem falha, skip ou cache de resultados. A comparação AST preserva os 64 testes originais, normalizando somente o timeout já acrescentado à fixture com parceiras `a`/`b`. Há testes determinísticos de abertura/recuperação do breaker, isolamento/expiração do cache, fallback e boot real. As alterações até a revisão obrigatória foram documentais; o bônus posterior tem [nova validação](docs/evidencias/paralelo/checks.txt): 98 testes principais/264 com subtestes, cinco comandos aprovados, [64 originais preservados](docs/evidencias/paralelo/preservacao-testes.json) e [suíte completa com race detector em Linux](docs/evidencias/paralelo/race.txt). No Windows não havia CGO/compilador C; o detector rodou em build Docker isolado.
 
 Quando o Docker não respondeu, os sinais foram conferidos primeiro com processos Windows isolados em loopback, mesmas versões de SDK/backends, scrape de 1 s, upstream controlado e miniredis: [condições](docs/evidencias/202611221350/verification.json), [coleta 1](docs/evidencias/202611221350/metrics-phase-1.json), [coleta 2](docs/evidencias/202611221350/metrics-phase-2.json), [oito traces Jaeger](docs/evidencias/202611221350/traces.json). Isso não foi apresentado como carga Compose; os auxiliares foram encerrados sem reiniciar serviços compartilhados. A medição padrão posterior usou Docker novamente disponível, no commit `c6c4c27c85608b252017cc4041ec93756e1d1133`.
 
@@ -214,6 +216,6 @@ O prazo Redis de 20 ms produziu falhas reais, não escondidas como misses. A car
 
 Validaria com negócio as hipóteses P-01/P-02 de recotação em até 300 s e utilidade de resposta parcial antes de aprovar economia/payback. Repetiria medições com riscos novos, cache frio/quente, perda de Redis e carga sustentada, verificando quotas, validade e custo por consulta; só então revisaria os 20 ms e os demais limiares com novas evidências, preservando o baseline.
 
-Em uma etapa de produção separada do PoC, implementaria identidade vinculada ao tenant, auditoria imutável e seus dois acknowledgements antes da apresentação, persistência/alertas/limites da observabilidade e os ensaios de DR do SAD. Não foram executados nem estão autorizados por este documento. Avaliaria a paralelização opcional apenas com testes e nova coleta comparável, sem acrescentar retries ou outros padrões fora de escopo.
+Em uma etapa de produção separada do PoC, implementaria identidade vinculada ao tenant, auditoria imutável e seus dois acknowledgements antes da apresentação, persistência/alertas/limites da observabilidade e os ensaios de DR do SAD. Não foram executados nem estão autorizados por este documento. O bônus de paralelização já foi implementado e medido, sem retries ou outros padrões; a piora de pressão/cobertura na carga aquecida exige ensaio sustentado antes de recomendar produção.
 
 Referências de apoio preservadas: [guia do SAD](docs/guia-sad.md), [roteiro de falha](docs/roteiro-cenario-de-falha.md) e [factibilidade dos mocks](docs/smoke-test-factibilidade.md).

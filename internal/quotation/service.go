@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
@@ -59,10 +60,35 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 	}
 	forPartner := partnerRequest{Broker: tenant, Request: request}
 
+	type partnerResult struct {
+		quote       Quote
+		unavailable bool
+		err         error
+	}
+	var results []partnerResult
+	if s.cache != nil {
+		if err := ctx.Err(); err != nil {
+			return Response{}, err
+		}
+		results = make([]partnerResult, len(s.partners))
+		var workers sync.WaitGroup
+		for i, p := range s.partners {
+			workers.Go(func() {
+				if err := ctx.Err(); err != nil {
+					results[i].err = err
+					return
+				}
+				results[i].quote, results[i].unavailable, results[i].err =
+					s.quoteWithCache(ctx, tenant, p, forPartner)
+			})
+		}
+		workers.Wait()
+	}
+
 	quotes := make([]Quote, 0, len(s.partners))
 	failures := make(map[string]string, len(s.partners))
 	cacheUnavailable := false
-	for _, p := range s.partners {
+	for i, p := range s.partners {
 		if err := ctx.Err(); err != nil {
 			return Response{}, err
 		}
@@ -71,9 +97,8 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 		if s.cache == nil {
 			quote.Quote, err = s.quoter.Quote(ctx, p, forPartner)
 		} else {
-			var unavailable bool
-			quote, unavailable, err = s.quoteWithCache(ctx, tenant, p, forPartner)
-			cacheUnavailable = cacheUnavailable || unavailable
+			quote, err = results[i].quote, results[i].err
+			cacheUnavailable = cacheUnavailable || results[i].unavailable
 		}
 		if ctx.Err() != nil {
 			return Response{}, ctx.Err()

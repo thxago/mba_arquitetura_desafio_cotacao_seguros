@@ -1,0 +1,353 @@
+diff --git a/internal/quotation/cache_test.go b/internal/quotation/cache_test.go
+index d1b577a..8333aa2 100644
+--- a/internal/quotation/cache_test.go
++++ b/internal/quotation/cache_test.go
+@@ -8,6 +8,8 @@ import (
+ 	"fmt"
+ 	"math"
+ 	"strings"
++	"sync"
++	"sync/atomic"
+ 	"testing"
+ 	"testing/synctest"
+ 	"time"
+@@ -18,6 +20,7 @@ import (
+ )
+ 
+ type memoryQuoteCache struct {
++	mu             sync.Mutex
+ 	values         map[string][]byte
+ 	expirations    map[string]time.Time
+ 	getErr, setErr error
+@@ -29,6 +32,8 @@ func newMemoryCache() *memoryQuoteCache {
+ }
+ 
+ func (c *memoryQuoteCache) Get(_ context.Context, key string) ([]byte, error) {
++	c.mu.Lock()
++	defer c.mu.Unlock()
+ 	c.gets++
+ 	if c.getErr != nil {
+ 		return nil, c.getErr
+@@ -42,6 +47,8 @@ func (c *memoryQuoteCache) Get(_ context.Context, key string) ([]byte, error) {
+ }
+ 
+ func (c *memoryQuoteCache) Set(_ context.Context, key string, value []byte, expiresAt time.Time) error {
++	c.mu.Lock()
++	defer c.mu.Unlock()
+ 	c.sets++
+ 	if c.setErr != nil {
+ 		return c.setErr
+@@ -294,14 +301,15 @@ func TestQuoteCannotExpireDuringPartnerCallOrFinalComposition(t *testing.T) {
+ 		t.Run(fmt.Sprint(duringCall), func(t *testing.T) {
+ 			synctest.Test(t, func(t *testing.T) {
+ 				store := newMemoryCache()
+-				calls := 0
++				var calls atomic.Int32
+ 				service := cachedService(t, threePartners[:2], cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
+-					calls++
++					calls.Add(1)
+ 					quote := originalQuote(p, 300)
+-					if calls == 1 {
++					first := p.Name == threePartners[0].Name
++					if first {
+ 						quote.ValidForSeconds = 2
+ 					}
+-					if (duringCall && calls == 1) || (!duringCall && calls == 2) {
++					if (duringCall && first) || (!duringCall && !first) {
+ 						time.Sleep(1500 * time.Millisecond)
+ 					}
+ 					return quote, nil
+@@ -313,10 +321,10 @@ func TestQuoteCannotExpireDuringPartnerCallOrFinalComposition(t *testing.T) {
+ 					response.UnavailablePartners[0] != (UnavailablePartner{Partner: threePartners[0].Name, Reason: "expired"}) {
+ 					t.Fatalf("expired quote was presented: response=%+v err=%v", response, err)
+ 				}
+-				if calls != 2 {
+-					t.Fatalf("expired proposal was queried again: calls=%d want 2", calls)
++				if calls.Load() != 2 {
++					t.Fatalf("expired proposal was queried again: calls=%d want 2", calls.Load())
+ 				}
+ 			})
+ 		})
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/internal/quotation/handler_test.go b/internal/quotation/handler_test.go
+index cfec49d..97ba5bc 100644
+--- a/internal/quotation/handler_test.go
++++ b/internal/quotation/handler_test.go
+@@ -7,6 +7,7 @@ import (
+ 	"net/http"
+ 	"net/http/httptest"
+ 	"strings"
++	"sync/atomic"
+ 	"testing"
+ 	"time"
+ 
+@@ -139,15 +140,17 @@ func TestResilientHTTPContract(t *testing.T) {
+ 		{"unavailable without Redis", 3, true, statusUnavailable, http.StatusServiceUnavailable},
+ 	} {
+ 		t.Run(scenario.name, func(t *testing.T) {
+-			calls := 0
++			var calls atomic.Int32
+ 			store := newMemoryCache()
+ 			if scenario.redisError {
+ 				store.getErr, store.setErr = errors.New("GET failed"), errors.New("SET failed")
+ 			}
+ 			service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
+-				calls++
+-				if calls <= scenario.failed {
+-					return partner.Quote{}, &partner.Error{Partner: p.Name, Kind: "upstream_error", Reason: "private details"}
++				calls.Add(1)
++				for _, failed := range threePartners[:scenario.failed] {
++					if p.Name == failed.Name {
++						return partner.Quote{}, &partner.Error{Partner: p.Name, Kind: "upstream_error", Reason: "private details"}
++					}
+ 				}
+ 				return originalQuote(p, 300), nil
+ 			}), store, 300*time.Second)
+@@ -166,8 +169,8 @@ func TestResilientHTTPContract(t *testing.T) {
+ 			}
+ 			if body.Status != scenario.status || body.Degraded != (scenario.failed > 0 || scenario.redisError) ||
+ 				body.CacheStatus != cacheStatus || len(body.Quotes) != 3-scenario.failed ||
+-				len(body.UnavailablePartners) != scenario.failed || calls != 3 || body.TenantID != "corretora-a" {
+-				t.Fatalf("contract lost completeness, cache state or candidates: %+v calls=%d", body, calls)
++				len(body.UnavailablePartners) != scenario.failed || calls.Load() != 3 || body.TenantID != "corretora-a" {
++				t.Fatalf("contract lost completeness, cache state or candidates: %+v calls=%d", body, calls.Load())
+ 			}
+ 			for i, missing := range body.UnavailablePartners {
+ 				if missing.Partner != threePartners[i].Name || missing.Reason != "upstream_error" {
+@@ -209,13 +212,13 @@ func TestResilientRoutesPreserveValidationAndCoverage(t *testing.T) {
+ 		{"default coverage", "corretora-a", strings.Replace(validBody, "comprehensive", "", 1), "comprehensive", http.StatusOK},
+ 	} {
+ 		t.Run(scenario.name, func(t *testing.T) {
+-			calls := 0
++			var calls atomic.Int32
+ 			store := newMemoryCache()
+ 			service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, raw any) (partner.Quote, error) {
+-				calls++
++				calls.Add(1)
+ 				request := raw.(partnerRequest)
+ 				if request.Broker != scenario.tenant || request.Coverage != scenario.coverage || request.Vehicle.Plate != "ABC1D23" {
+-					t.Fatalf("tenant/normalized risk not preserved: %+v", request)
++					t.Errorf("tenant/normalized risk not preserved: %+v", request)
+ 				}
+ 				return originalQuote(p, 300), nil
+ 			}), store, 300*time.Second)
+@@ -224,7 +227,7 @@ func TestResilientRoutesPreserveValidationAndCoverage(t *testing.T) {
+ 			if recorder.Code != scenario.code {
+ 				t.Fatalf("HTTP %d, want %d: %s", recorder.Code, scenario.code, recorder.Body)
+ 			}
+-			if scenario.code != http.StatusOK && (calls != 0 || store.gets != 0 || store.sets != 0) {
++			if scenario.code != http.StatusOK && (calls.Load() != 0 || store.gets != 0 || store.sets != 0) {
+ 				t.Fatal("invalid request reached cache/partners")
+ 			}
+ 			health := httptest.NewRecorder()
+@@ -234,4 +237,4 @@ func TestResilientRoutesPreserveValidationAndCoverage(t *testing.T) {
+ 			}
+ 		})
+ 	}
+-}
+\ No newline at end of file
++}
+diff --git a/internal/quotation/service.go b/internal/quotation/service.go
+index e07459f..2c541f1 100644
+--- a/internal/quotation/service.go
++++ b/internal/quotation/service.go
+@@ -5,6 +5,7 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"sort"
++	"sync"
+ 	"time"
+ 
+ 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
+@@ -59,10 +60,35 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
+ 	}
+ 	forPartner := partnerRequest{Broker: tenant, Request: request}
+ 
++	type partnerResult struct {
++		quote       Quote
++		unavailable bool
++		err         error
++	}
++	var results []partnerResult
++	if s.cache != nil {
++		if err := ctx.Err(); err != nil {
++			return Response{}, err
++		}
++		results = make([]partnerResult, len(s.partners))
++		var workers sync.WaitGroup
++		for i, p := range s.partners {
++			workers.Go(func() {
++				if err := ctx.Err(); err != nil {
++					results[i].err = err
++					return
++				}
++				results[i].quote, results[i].unavailable, results[i].err =
++					s.quoteWithCache(ctx, tenant, p, forPartner)
++			})
++		}
++		workers.Wait()
++	}
++
+ 	quotes := make([]Quote, 0, len(s.partners))
+ 	failures := make(map[string]string, len(s.partners))
+ 	cacheUnavailable := false
+-	for _, p := range s.partners {
++	for i, p := range s.partners {
+ 		if err := ctx.Err(); err != nil {
+ 			return Response{}, err
+ 		}
+@@ -71,9 +97,8 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
+ 		if s.cache == nil {
+ 			quote.Quote, err = s.quoter.Quote(ctx, p, forPartner)
+ 		} else {
+-			var unavailable bool
+-			quote, unavailable, err = s.quoteWithCache(ctx, tenant, p, forPartner)
+-			cacheUnavailable = cacheUnavailable || unavailable
++			quote, err = results[i].quote, results[i].err
++			cacheUnavailable = cacheUnavailable || results[i].unavailable
+ 		}
+ 		if ctx.Err() != nil {
+ 			return Response{}, ctx.Err()
+@@ -159,4 +184,4 @@ func unavailableReason(err error) string {
+ 		}
+ 	}
+ 	return "upstream_error"
+-}
+\ No newline at end of file
++}
+diff --git a/internal/quotation/service_test.go b/internal/quotation/service_test.go
+index 5b28a97..86c6be2 100644
+--- a/internal/quotation/service_test.go
++++ b/internal/quotation/service_test.go
+@@ -6,6 +6,7 @@ import (
+ 	"errors"
+ 	"fmt"
+ 	"reflect"
++	"slices"
+ 	"strings"
+ 	"sync/atomic"
+ 	"testing"
+@@ -160,9 +161,9 @@ func TestPartialQuoteContinuesAfterFailuresAndPreservesSortedOrigins(t *testing.
+ 	for _, reason := range []string{"timeout", "circuit_open", "half_open_limit", "upstream_error", "invalid_response", "expired", "private_reason"} {
+ 		t.Run(reason, func(t *testing.T) {
+ 			synctest.Test(t, func(t *testing.T) {
+-				var calls []string
++				calls := make(chan string, len(threePartners))
+ 				service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
+-					calls = append(calls, p.Name)
++					calls <- p.Name
+ 					if p.Name == threePartners[0].Name {
+ 						return partner.Quote{}, fmt.Errorf("wrapped: %w", &partner.Error{
+ 							Partner: "untrusted-name", Kind: reason, Reason: "http://internal/private-details",
+@@ -186,8 +187,15 @@ func TestPartialQuoteContinuesAfterFailuresAndPreservesSortedOrigins(t *testing.
+ 					t.Fatalf("unexpected partial response: %+v err=%v", response, err)
+ 				}
+ 				wantCalls := []string{threePartners[0].Name, threePartners[1].Name, threePartners[2].Name}
+-				if !reflect.DeepEqual(calls, wantCalls) {
+-					t.Fatalf("failed partner stopped or retried aggregation: %v", calls)
++				close(calls)
++				var gotCalls []string
++				for name := range calls {
++					gotCalls = append(gotCalls, name)
++				}
++				slices.Sort(gotCalls)
++				slices.Sort(wantCalls)
++				if !reflect.DeepEqual(gotCalls, wantCalls) {
++					t.Fatalf("failed partner stopped or retried aggregation: %v", gotCalls)
+ 				}
+ 				for i, name := range []string{"partner-flaky", "partner-degrading"} {
+ 					quote := response.Quotes[i]
+@@ -216,26 +224,76 @@ func TestConsumerCancellationDiscardsPartialResultsAndStopsPurchasing(t *testing
+ 					ctx, cancel = context.WithTimeout(context.Background(), 50*time.Millisecond)
+ 				}
+ 				defer cancel()
+-				calls := 0
++				var calls atomic.Int32
++				started := make(chan struct{}, len(threePartners))
+ 				store := newMemoryCache()
+ 				service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
+-					calls++
+-					if calls == 2 {
+-						if deadline {
+-							<-ctx.Done()
+-						} else {
+-							cancel()
+-						}
+-					}
+-					return originalQuote(p, 300), nil
++					calls.Add(1)
++					started <- struct{}{}
++					<-ctx.Done()
++					return partner.Quote{}, ctx.Err()
+ 				}), store, 300*time.Second)
++				if !deadline {
++					go func() {
++						for range threePartners {
++							<-started
++						}
++						cancel()
++					}()
++				}
+ 				response, err := service.Quote(ctx, "corretora-a", validRequest())
+ 				if !errors.Is(err, ctx.Err()) || err == nil || len(response.Quotes) != 0 ||
+-					calls != 2 || store.gets != 2 || store.sets != 1 {
++					calls.Load() != 3 || store.gets != 3 || store.sets != 0 {
+ 					t.Fatalf("canceled consumer got partial output or bought more work: response=%+v calls=%d writes=%d err=%v",
+-						response, calls, store.sets, err)
++						response, calls.Load(), store.sets, err)
+ 				}
++
+ 			})
+ 		})
+ 	}
+-}
+\ No newline at end of file
++}
++
++func TestResilientAggregationOverlapsPartnersAndPreservesOrigins(t *testing.T) {
++	synctest.Test(t, func(t *testing.T) {
++		delays := map[string]time.Duration{
++			"partner-slow": 3 * time.Second, "partner-flaky": time.Second, "partner-degrading": 2 * time.Second,
++		}
++		service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, raw any) (partner.Quote, error) {
++			if raw.(partnerRequest).Broker != "corretora-a" {
++				t.Error("worker lost tenant")
++			}
++			q := originalQuote(p, 300)
++			q.QuoteID = p.Name
++			q.PremiumCents = defaultPremiums()[p.Name]
++			time.Sleep(delays[p.Name])
++			return q, nil
++		}), newMemoryCache(), 300*time.Second)
++		start := time.Now()
++		response, err := service.Quote(context.Background(), "corretora-a", validRequest())
++		if err != nil || response.Status != statusComplete || len(response.Quotes) != 3 ||
++			time.Since(start) != 3*time.Second {
++			t.Fatalf("partners did not overlap: response=%+v elapsed=%s err=%v", response, time.Since(start), err)
++		}
++		for i, name := range []string{"partner-flaky", "partner-degrading", "partner-slow"} {
++			q := response.Quotes[i]
++			if q.Partner != name || q.QuoteID != name || q.PremiumCents != defaultPremiums()[name] ||
++				q.Source != "partner" || q.ValidForSeconds != 297 || q.AgeSeconds != 3 {
++				t.Fatalf("completion order detached origin or validity: %+v", q)
++			}
++		}
++	})
++}
++
++func TestCanceledConsumerDoesNotStartParallelWork(t *testing.T) {
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	store := newMemoryCache()
++	service := cachedService(t, threePartners, cacheQuoterFunc(func(context.Context, platform.Partner, any) (partner.Quote, error) {
++		t.Error("started HTTP for canceled consumer")
++		return partner.Quote{}, nil
++	}), store, 300*time.Second)
++	response, err := service.Quote(ctx, "corretora-a", validRequest())
++	if !errors.Is(err, context.Canceled) || len(response.Quotes) != 0 || store.gets != 0 || store.sets != 0 {
++		t.Fatalf("canceled request started work: %+v %v", response, err)
++	}
++}

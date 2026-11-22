@@ -1,0 +1,29 @@
+{
+  "phasesInferredFromTrace": {
+    "sequential": {
+      "complete": 7,
+      "partial": 3
+    },
+    "load": {
+      "complete": 160,
+      "partial": 40
+    }
+  },
+  "method": "Surviving cache_hit events plus HTTP 200 from unchanged valid mock; 210 requests within TTL, not loadgen body capture.",
+  "cache": {
+    "error": 97,
+    "hit": 503,
+    "miss": 30
+  },
+  "setErrors": 3,
+  "operationalHitRateExcludingErrors": 0.9437148217636022,
+  "effectiveHitShare": 0.7984126984126985,
+  "actualHTTPCalls": 123,
+  "hypotheticalHTTPChargeBRL": 4.92,
+  "serialActualHTTPCalls": 67,
+  "serialHypotheticalHTTPChargeBRL": 2.68,
+  "tracesWithThreeOverlappingClients": 25,
+  "testTopLevel": 98,
+  "testIncludingSubtests": 264,
+  "interpretation": "Cold sequential empirical p95 2.04s -> 1.68s (17.65% lower); warm load 1.70s -> 1.71s and 114.1 -> 98.0 req/s, not improvement. Unit prices/TCO assumptions unchanged; no production savings inferred."
+}

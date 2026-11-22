@@ -1,8 +1,10 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.13 | 22/11/2026**
+**Solution Architecture Document | versão 0.14 | 22/11/2026**
 
 **Estado:** as oito seções estão elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Hospedagem, operação e recuperação de produção estão projetadas, não provisionadas ou homologadas. O TCO é um orçamento condicional com preços hipotéticos, não cotação ou economia realizada. A arquitetura de produção está **parcialmente implementada**. A revisão de coerência foi concluída.
+
+**Bônus desta revisão:** D-05 implementa agregação paralela; F-10 preserva nova coleta e comprova sobreposição, ganho na fase iniciada a frio e piora de pressão/cobertura na carga aquecida. F-09 permanece a prova histórica serial dos requisitos obrigatórios; não se presume melhoria universal ou economia com o bônus.
 
 ## 1. Introdução
 
@@ -25,8 +27,9 @@ Este SAD orienta a extensão da API existente na fronteira com as parceiras. Par
 | F-07 | [gobreaker v2.4.0: código](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/gobreaker.go) e [módulo](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/go.mod), consultados em 22/11/2026 | API e semântica da biblioteca escolhida; dependência adicionada em `go.mod`/`go.sum` |
 | F-08 | `cmd\partner-mock\behavior.go`, `cmd\partner-mock\config.go`, `cmd\partner-mock\main.go` e `cmd\partner-mock\feasibility_test.go` | Latência efetiva, validade padrão, cancelamento e sequência determinística das parceiras |
 | F-09 | [Sete evidências](evidencias/README.md#depois-da-intervenção), [relatório padrão do depois](evidencias/depois-reproduce.txt), [comparação](evidencias/depois-comparacao.json) e [metadados](evidencias/depois-captura.json) | Medição própria em 22/11/2026, mesmos defaults; estímulo auxiliar explicitamente separado |
+| F-10 | [Bônus paralelo](evidencias/README.md#bônus-paralelo-task-16), [relatório](evidencias/paralelo/reproduce.txt), [contexto e hashes](evidencias/paralelo/contexto.json), [comparação](evidencias/paralelo/comparacao.json) e [sobreposição real](evidencias/paralelo/sobreposicao.json) | Nova execução em 22/11/2026; não substitui F-04/F-09 |
 
-**Existente** significa conferido no código ou na configuração. **Medido** significa obtido nas execuções F-04 ou F-09, não copiado de exemplos do enunciado. **Pressuposto** é hipótese com consequência explícita na seção 1.5. **Proposto** é requisito ou desenho para implementação futura. As obrigações atribuídas a SUSEP e LGPD são as premissas fornecidas por F-01 para este exercício, não uma certificação jurídica independente.
+**Existente** significa conferido no código ou na configuração. **Medido** significa obtido nas execuções F-04, F-09 ou F-10, não copiado de exemplos do enunciado. **Pressuposto** é hipótese com consequência explícita na seção 1.5. **Proposto** é requisito ou desenho para implementação futura. As obrigações atribuídas a SUSEP e LGPD são as premissas fornecidas por F-01 para este exercício, não uma certificação jurídica independente.
 
 O [README da raiz](../README.md) descreve o processo e a versão entregue; o enunciado em F-01 preserva a descrição do baseline, não o estado atual do PoC.
 
@@ -36,7 +39,7 @@ O PoC implementado cobre timeout e circuit breaker na chamada às parceiras, cac
 
 As seções 5 a 7 projetam hospedagem, auditoria imutável, operação e recuperação; a seção 8 estima seu TCO e as condições de viabilidade. **Projetar auditoria não significa persistir registros no PoC**: cache efêmero e traces não cumprem retenção regulatória.
 
-Não fazem parte da implementação: motores das seguradoras, integrações reais, interface do corretor, cadastro, cobrança, relatórios comerciais, persistência de auditoria, retry, bulkhead, rate limiting, filas, autenticação ou Kubernetes. Não serão resolvidas transações entre cache e parceira nem coordenação distribuída de breakers. A agregação paralela é bônus opcional, não premissa para cumprir os requisitos desta versão. Essas exclusões vêm de F-01 e estão relacionadas aos limites operacionais da seção 4.7.
+Não fazem parte da implementação: motores das seguradoras, integrações reais, interface do corretor, cadastro, cobrança, relatórios comerciais, persistência de auditoria, retry, bulkhead, rate limiting, filas, autenticação ou Kubernetes. Não serão resolvidas transações entre cache e parceira nem coordenação distribuída de breakers. A agregação paralela foi acrescentada como bônus em D-05, depois do aceite dos requisitos obrigatórios na versão serial F-09. Essas exclusões vêm de F-01 e estão relacionadas aos limites operacionais da seção 4.7.
 
 ### 1.4 Restrições impostas versus decisões de arquitetura
 
@@ -62,7 +65,7 @@ As hipóteses abaixo não são medições de produção. Precisam ser validadas 
 | --- | --- | --- | --- |
 | P-01 | Em produção, 20% das oportunidades de consulta a uma parceira, no cenário conservador, ou 40%, no favorável, repetem exatamente o mesmo risco normalizado **na mesma corretora e parceira** antes do vencimento efetivo de até 300 s, contado conservadoramente desde o início da consulta original bem-sucedida | Hipótese de trabalho motivada pela recotação descrita em F-01; 300 s corresponde ao TTL máximo escolhido na seção 4.3 e ao padrão técnico do mock. Validar por estudo agregado das recotações, com minimização e sem incluir dados pessoais na telemetria | Se a repetição ocorrer depois do TTL efetivo, ou mudar corretora, risco ou parceira, ela não é elegível. A seção 8 deve reduzir o hit rate e recalcular economia/payback; não ampliar validade para salvar a conta |
 | P-02 | Para o fluxo proposto, pelo menos **uma proposta válida dentre três** já tem utilidade comercial, desde que a corretora consiga identificar origem, ausências e degradação | Hipótese de produto, ainda sem aprovação externa; sustenta a escolha de resposta parcial na seção 4.4. Validar com representante da corretora antes de uso comercial | Se o produto exigir sempre três propostas, a disponibilidade útil do RNF-02 não pode contar resposta parcial. Revisar fallback e metas, sem mascarar recusas como sucesso |
-| P-03 | O objetivo inicial de experiência é p95 de até **4 s** sob a carga padrão; a ambição de melhoria é reduzir aproximadamente pela metade os **8,01 s** medidos | Meta de engenharia proposta a partir de F-04, não pesquisa com usuários nem SLA contratual. O melhor caso sequencial observado foi 2,03 s de p95, portanto o alvo não exige paralelizar. Validar com produto e com a execução do depois | Se o negócio exigir menos que a soma saudável das parceiras em cache miss, proteção e cache podem não bastar. Rever escopo e decisões; não afirmar que o bônus de paralelização foi implementado |
+| P-03 | O objetivo inicial de experiência é p95 de até **4 s** sob a carga padrão; a ambição de melhoria é reduzir aproximadamente pela metade os **8,01 s** medidos | Meta de engenharia proposta a partir de F-04, não pesquisa com usuários nem SLA contratual. O melhor caso sequencial observado foi 2,03 s de p95, portanto o alvo não exige paralelizar. F-09 cumpriu o alvo antes do bônus; F-10 avalia D-05 separadamente | Se o negócio exigir menos que o maior timeout em miss, paralelizar pode não bastar. Rever escopo e metas com produto; não extrapolar a medição do bônus para SLA |
 | P-04 | A prova local usa **uma réplica da API, dois tenants permitidos e três parceiras** | Topologia e `TENANTS` de F-03; hipótese de representatividade limitada ao PoC, não descrição da escala de produção. Validar separadamente qualquer expansão | Com mais réplicas, breakers locais aprendem falhas separadamente; com mais tenants, há disputa de capacidade. A seção 7 e os custos da seção 8 não podem extrapolar os resultados linearmente |
 
 Para P-01, a unidade é a oportunidade de consulta por parceira, não a cotação agregada. Com o cache por parceira da seção 4.3, as frações elegíveis de 20% e 40% sustentam cenários condicionais de hit rate de até 20% e 40%, sem expulsão nem perda do Redis. O limite de 300 s começa antes do envio HTTP e não se renova no hit; o prazo útil após a resposta é menor. Falhas de preenchimento, validade restante e expiração podem reduzir o acerto. A seção 8 trata esses números como limites condicionais e testa perdas de efetividade, nunca como medição de produção.
@@ -133,7 +136,7 @@ F-04 mostra por que a intervenção se concentra nessa fronteira: no [trace lent
 
 ### 2.3 Contêineres - C4 nível 2 do depois
 
-**O desenho abaixo representa o recorte local implementado e medido na carga padrão de F-09.** Timeout, breaker, cache, fallback parcial e métricas/eventos de negócio estão ligados no boot. Além da conferência inicial em backends isolados, há evidências do Compose real. A agregação continua sequencial, sem depender do bônus; a aprovação nesta carga não é garantia de produção.
+**O desenho abaixo representa o recorte local implementado.** Timeout, breaker, cache, fallback parcial e métricas/eventos de negócio estão ligados no boot. F-09 preserva a medição serial; D-05 acrescenta fan-out paralelo por parceira, sem novos serviços. A aprovação na carga de laboratório não é garantia de produção.
 
 ```mermaid
 flowchart LR
@@ -141,7 +144,7 @@ flowchart LR
     operator(["Operacao<br/>Pessoa interna"])
     load["loadgen<br/>Conteiner Go existente - mesma carga de teste"]
     subgraph prumo["Prumo Cota - destino com implementacao parcial"]
-        api["quotation-api<br/>Timeout, breaker, cache e fallback implementados<br/>Sinais de negocio implementados"]
+        api["quotation-api<br/>Fan-out paralelo por parceira, timeout, breaker, cache e fallback<br/>Sinais de negocio implementados"]
         redis[("redis<br/>Conteiner existente<br/>Cache isolado por tenant, parceira e risco")]
         collector["otel-collector<br/>Conteiner existente - mesmo pipeline"]
         jaeger["jaeger<br/>Conteiner existente - traces"]
@@ -171,7 +174,8 @@ A auditoria durável de produção **não está representada como contêiner ent
 - **Fluxo e contrato alterados:** cache por parceira antes de comprar consultas elegíveis, bloqueio HTTP com circuito aberto e degradação/origem visíveis; resposta parcial e metadados conforme seção 4.
 - **Observabilidade de negócio acrescentada:** transições do breaker, hit/miss e latência por parceira, mais marcações de cache e curto-circuito, sem atributos pessoais. Pipeline F-06 reutilizado; não há gauge de estado.
 - **Tudo-ou-nada retirado do boot:** política da seção 4 sem fabricar propostas, preservando validações, ordenação, tenant e testes originais. Construtores legados permanecem somente por compatibilidade dos testes.
-- **Preservados:** três parceiras, perfis, gerador, serviços Compose e destinos de telemetria; apenas a API recebeu a configuração dos mecanismos. Paralelização, auditoria persistida e controles de concorrência adicionais não foram implementados.
+- **Bônus D-05:** fluxos independentes por parceira em paralelo, com junção antes de validar/ordenar a resposta; erro de uma não cancela irmãs.
+- **Preservados:** três parceiras, perfis, gerador, serviços Compose e destinos de telemetria; apenas a API recebeu a configuração dos mecanismos. Auditoria persistida e controles de admissão/concorrência adicionais não foram implementados.
 
 O delta serve ao CTO por reduzir consultas pagas quando P-01 se sustentar, à operação por limitar espera e identificar o motivo da degradação e à corretora/encarregado por preservar isolamento e rastreabilidade. As metas da seção 3 deverão limitar o desenho detalhado da seção 4; o desenho não pode usar uma melhoria de latência para esconder ausência de propostas válidas.
 
@@ -216,6 +220,8 @@ O depois usou a mesma carga, seeds, perfis e versões de ferramentas, no mesmo h
 **Depois, F-09 — 22/11/2026, commit `c6c4c27c85608b252017cc4041ec93756e1d1133`.** `make down; make reproduce`, sem overrides. Na fase sequencial (20:09:59–20:10:09 UTC), 10/10 sucessos, p95 2,04 s e 1,0 req/s. Na carga padrão (20:10:09–20:10:10 UTC), **200/200 úteis, p95 1,70 s e 114,1 req/s**, com 1,75 s de duração. Em relação ao antes, p95 caiu aproximadamente 78,8%, sucesso aumentou 40 pontos percentuais e vazão foi aproximadamente 14,1 vezes maior. O p95 frio sequencial permaneceu em torno de 2 s.
 
 Os 210 traces preservados confirmam todas as respostas 200 com propostas rastreáveis. A contagem de eventos de cache após composição e chamadas HTTP 200 dos mocks identifica 189 completas/11 parciais na carga e sete completas/três parciais na sequencial; não é uma captura de corpos pelo loadgen. Os testes preservados comprovam o contrato sem 200 vazio e a validade. Fonte e método estão em [depois-comparacao.json](evidencias/depois-comparacao.json). São cinco riscos repetidos e cache aquecido pela fase sequencial, não produção ou capacidade sustentada; as datas diferem e outros consumidores de recursos do host não foram controlados.
+
+**Bônus paralelo, F-10 — 22/11/2026, D-05.** Mesmos defaults após reset, código identificado por HEAD `5209e410db1d9200b6fcc1472384b0be4505506a` **mais** [patch](evidencias/paralelo/implementacao.patch) e hashes das fontes. Na fase sequencial iniciada com cache frio, 10/10 úteis e p95 **1,68 s**, redução de **17,65%** frente aos 2,04 s seriais; dez pedidos para cinco riscos não significam dez misses frios. Na carga, **200/200 úteis**, p95 **1,71 s**, **98,0 req/s** em **2,04 s**: não melhorou os 1,70 s/114,1 req/s de F-09. Completas/parciais foram 7/3 na sequencial e **160/40** na carga; RNF-01 a RNF-03 continuam atendidos sob P-02, mas a cobertura piorou. O experimento não controla outros consumidores do host nem isola causalidade de cada diferença; a sobreposição real, e não somente p95, é comprovada em 4.9.
 
 ### 3.4 Requisitos não funcionais e origem dos alvos
 
@@ -272,23 +278,23 @@ As métricas de breaker/cache estão implementadas e sua chegada aos backends es
 
 ### 4.1 Sequência de atendimento e orçamento de espera
 
-Manter a ordem configurada das três parceiras, sem paralelizar. Depois de validar tenant e normalizar o risco:
+Depois de validar tenant e normalizar o risco, executar um fluxo independente por parceira em paralelo (D-05). A ordem configurada é preservada na composição das ausências, não na ordem de início/conclusão das chamadas:
 
 1. Para cada parceira, procurar sua entrada de cache isolada. Se válida, reutilizar sem chamar a parceira e sem registrar sucesso no breaker.
 2. Em miss ou falha do Redis, pedir admissão ao breaker daquela parceira. Se aberto, ou se a única sondagem em meio aberto já estiver ocupada, registrar indisponibilidade sem sair por HTTP.
 3. Se admitido, executar uma consulta com timeout próprio. Apenas resposta válida vira proposta e tentativa de preenchimento do cache. Erro de cache não altera os contadores do breaker da seguradora.
-4. Continuar nas demais parceiras mesmo após falha. Ao compor a resposta, conferir novamente a validade de todas as propostas, ordenar por prêmio e aplicar D-03.
+4. Falha de uma parceira não cancela as demais. Aguardar todos os fluxos; ao compor a resposta, conferir novamente a validade de todas as propostas, ordenar por prêmio e aplicar D-03.
 
-Não há retry, renovação de TTL no hit, busca de preço fabricado nem chamada de atualização em segundo plano. O cancelamento da requisição pelo consumidor encerra o trabalho; não é motivo para continuar comprando consultas.
+Não há retry, renovação de TTL no hit, busca de preço fabricado nem chamada de atualização em segundo plano. O cancelamento do consumidor é propagado aos fluxos e impede novas etapas quando observado; a API aguarda seu término e descarta resultados. Não desfaz consultas já admitidas nem garante que seu custo tenha sido evitado.
 
 | Parâmetro decidido | Valor padrão e local de aplicação | Justificativa e custo da escolha |
 | --- | --- | --- |
 | Timeout HTTP da `partner-slow` | **2 s**, no `http.Client.Timeout` usado por essa parceira | F-08 aplica 1.500 ms mais jitter de 0 a menos de 200 ms, não ±200 ms. Há cerca de 300 ms de margem sobre 1.700 ms; o trace próprio de 1.699,726 ms cabe. A margem é orçamento, não p99 de rede medido |
 | Timeout HTTP da `partner-flaky` | **500 ms**, no cliente dessa parceira | F-08 aplica 150 ms mais até 50 ms de jitter; sobra aproximadamente 300 ms para transporte. A falha 503 é sinal imediato, sem esperar o teto |
 | Timeout HTTP da `partner-degrading` | **1 s**, no cliente dessa parceira | Em repouso, 120 a menos de 160 ms; em oito simultâneas, soma 900 ms e ultrapassa 1 s mesmo no piso. A lentidão se torna falha antes dos 6.148,984 ms medidos sob carga |
-| Prazo total por operação Redis | **20 ms** por GET ou SET, incluindo espera por conexão, rede e resposta | Orçamento local proposto; no pior caminho são três leituras e três escritas: 120 ms. Não é uma medição de RTT nem timeout apenas do socket; o cliente deve respeitar o prazo total e não fazer retries internos |
+| Prazo total por operação Redis | **20 ms** por GET ou SET, incluindo espera por conexão, rede e resposta | Até três leituras e três escritas; por fluxo, até 40 ms de orçamento. Os fluxos agora se sobrepõem, mas disputam pool/servidor. Não é RTT medido nem timeout apenas do socket; sem retries internos |
 
-O teto de tempo externo orçado para um miss nas três parceiras é `2 + 0,5 + 1 + 6 × 0,020 = 3,620 s`, deixando aproximadamente 380 ms até RNF-01 para normalização, serialização, escalonamento e transporte da API. Isso **não garante** p95 de 4 s: filas de CPU, GC e infraestrutura não são limitadas por essa soma; a prova continua sendo o depois. Hits ou curto-circuitos evitam partes desse orçamento.
+O orçamento externo de miss nas três parceiras era `2 + 0,5 + 1 + 6 × 0,020 = 3,620 s` na versão serial F-09. Com D-05, passa a `max(2; 0,5; 1) + 2 × 0,020 = 2,040 s` por caminho crítico. Isso **não garante** p95 de 4 s: CPU, GC, escalonamento, validação e infraestrutura não são limitados por esse orçamento; a prova continua sendo uma nova coleta. Hits ou curto-circuitos evitam partes da espera.
 
 O teto de 6.000 ms do cenário limita o **acréscimo** de degradação, não toda a latência: F-08 soma base, jitter e acréscimo. Esse detalhe explica por que o trace supera 6 s. O timeout de 1 s corta esse caminho sem alterar o mock.
 
@@ -425,7 +431,7 @@ flowchart LR
     caller["Consumidor da API<br/>Corretora ou loadgen"]
     subgraph api["quotation-api - conteiner Go existente; implementacao parcial"]
         handler["Handler HTTP e normalizacao<br/>internal/quotation/handler.go e request.go"]
-        service["Agregador serial e fallback<br/>internal/quotation/service.go"]
+        service["Fan-out paralelo, juncao e fallback<br/>internal/quotation/service.go"]
         cache["Cache por tenant, risco e parceira<br/>quotation/cache.go e cache/redis.go implementados"]
         protected["Cliente protegido e breaker por parceira<br/>internal/partner/client.go - gobreaker v2 implementado"]
         http["Cliente HTTP com timeout por parceira<br/>Extensao de internal/partner/client.go"]
@@ -551,6 +557,24 @@ A carga auxiliar pode variar o número de riscos/concorrência via argumentos j�
 
 Ficam **apenas como propostas de produção**: auditoria imutável e seus cinco anos de retenção, autenticação, coordenação entre réplicas, controles de capacidade, hospedagem resiliente e recuperação de região. As seções 5 a 7 registram hospedagem, alertas/runbook e RTO/RPO; a seção 8 estima custos/pessoal. Nenhuma dessas extensões será implementada para compensar os limites da seção 4.7.
 
+### 4.9 D-05 — Agregação paralela no caminho resiliente
+
+**Contexto.** A versão serial preservada em F-09 espera a soma das consultas em miss; o cache aquecido mascara esse custo. O bônus passa a sobrepor as parceiras, sem alterar mocks, seeds, carga, timeouts, breaker, chave/TTL ou contrato. Os resultados de F-09 continuam históricos da versão serial, não medição desta mudança.
+
+**Opções.** Manter série não acrescenta concorrência, mas acumula latências independentes. Cancelar todas na primeira falha seria fail-fast e quebraria D-03. Paralelizar com fila/pool/bulkhead acrescentaria padrões fora de escopo. Escolhe-se uma goroutine por parceira configurada, com cache → breaker → HTTP dentro dela, e espera por todas as conclusões; nenhuma dependência ou retry novo.
+
+**Escolha.** Somente `NewCachedService`, usado pelo boot, executa o fan-out. Cada worker escreve exclusivamente seu slot de resultado; `sync.WaitGroup` estabelece a sincronização antes de o agregador ler os slots. Mapas de ausências, slice de propostas, ordenação e eventos finais de hit continuam exclusivos do agregador, na ordem configurada antes da ordenação por prêmio. O pedido é uma cópia por valor, sem mutação compartilhada. Redis, cliente HTTP, breaker e OTel suportam concorrência; doubles de teste precisam da mesma garantia.
+
+Falha de uma parceira não cancela irmãs. Cancelamento/prazo do consumidor chega a todos os workers pelo mesmo contexto, impede novas etapas quando observado e descarta qualquer resultado parcial. A função espera os workers terminarem antes de retornar: não deixa trabalho órfão; transporte e Redis reais respeitam contexto/prazos. Consultas já admitidas podem ter sido pagas e não são desfeitas pelo cancelamento. Os construtores básicos legados continuam seriais para preservar os testes originais, nunca selecionados pelo boot.
+
+**Consequências.** O orçamento externo frio passa de soma de até 3,620 s para `max(2s, 500ms, 1s) + 2 × 20ms = 2,040 s`, sem garantir p95 por causa de filas/GC/rede. A composição ainda remove propostas com menos de um segundo restante. Há até três fluxos por requisição e, com 50 requisições em voo, até 150 fluxos potenciais, não um limite global de HTTP. Isso antecipa pressão sobre Redis/parceiras, pode aumentar misses duplicados, erros de 20 ms, timeouts, aberturas e reduzir cobertura; não supor economia ou vazão melhor em todo cenário. Breakers continuam por parceira/processo, compartilhados entre tenants. P-01, preço por HTTP, auditoria por apresentação e TCO não mudam automaticamente; nova coleta deve confrontar latência **e** cobertura/chamadas, separada do serial e do baseline.
+
+**Provas e resultado F-10.** O teste virtual de três parceiras com esperas 3/1/2 s termina em 3 s, não 6 s, mantendo origem, tenant, validade e ordenação. Testes cobrem cancelamento anterior sem trabalho, cancelamento com três fluxos já admitidos, validade na junção e erro sem fail-fast. A [nova suíte](evidencias/paralelo/checks.txt) aprovou 98 testes principais/264 com subtestes nos sete pacotes, sem skips/cache; formatter, vet, smoke e build aprovados. [AST](evidencias/paralelo/preservacao-testes.json) preserva os 64 testes originais; [race detector](evidencias/paralelo/race.txt) aprovou todos os pacotes em Linux, com CGO e compilador C no build isolado, indisponíveis no host Windows.
+
+No [trace frio `f5637da2d247b8ed020c6fed5618a2f3`](evidencias/paralelo/trace-paralelo.json), slow/flaky/degrading começam a 8,240/8,419/11,927 ms da entrada e duram 1.628,885/187,547/148,114 ms. A interseção das três é **148,114 ms**; a soma HTTP de **1.964,546 ms** cabe numa resposta de **1.638,574 ms**, prova direta de sobreposição. Há 25 traces com as três chamadas sobrepostas. A comparação empírica por fase está em 3.3; o [p95 estimado](evidencias/paralelo/p95.png) usa a mesma PromQL, janela absoluta de 79 s, rate de 1 min, passo de 5 s e escala 0–10 s, deslocada para 23:23:52–23:25:11 UTC. Pico do histograma **2,157 s**, distinto do p95 empírico de 1,71 s.
+
+Nas 630 oportunidades, foram **503 hits, 30 misses, 97 erros GET e três erros SET**, 94,37% de hit entre leituras saudáveis e **79,84%** sobre todas as oportunidades. HTTP efetivos **67 → 123**, quatro traces com curto-circuito e 151 inteiramente de cache; a cobertura caiu apesar de 100% de respostas úteis. Portanto o bônus demonstrou menor espera na fase iniciada a frio e concorrência correta, **não melhoria universal de desempenho ou custo**. Não se alteraram prazos, mocks ou carga para ocultar o trade-off; ensaio sustentado e revisão de capacidade/prazos são próximos trabalhos, não escopo implementado.
+
 ## 5. Implementação
 
 ### 5.1 Mecanismo, arquivo e prova
@@ -563,9 +587,9 @@ Os caminhos abaixo partem da raiz. A seção 4 justifica os parâmetros; este ma
 | Configuração validada / RNF-07 | `internal\platform\config.go`: endpoints, tenants, timeouts por parceira, limiar/janela/sondagem do breaker, endereço Redis, TTL e prazo de operação | `config_test.go`; inválidos falham antes de servir. Mudanças são por ambiente e recriação do processo; não há hot reload |
 | Timeout, breaker e resposta válida / RF-07, RNF-01 a RNF-03 | `internal\partner\client.go`: cliente reutilizado por parceira/processo, timeout cobrindo corpo, classificação de falhas, exclusão de cancelamento do consumidor, bloqueio antes do transporte e Counter de transições | `sony/gobreaker/v2 v2.4.0`: três estados explícitos, janela fixa e admissão limitada no meio aberto; `resilience_test.go`, `client_test.go` e `telemetry_test.go` |
 | Cache-aside isolado e validade / RF-04 a RF-06, RNF-04 e RNF-07 | `internal\quotation\cache.go`: chave canônica, envelope, GET antes do breaker, validação por tenant/parceira, expiração original e eventos. `internal\cache\redis.go`: RESP2, GET e SET PXAT absoluto, prazo total e zero retries | `go-redis/v9 v9.12.1`: cliente RESP/pool consolidado, compatível com o prazo e os testes. `cache_test.go` e `redis_test.go`; `miniredis/v2 v2.35.0` é somente teste |
-| Fallback e contrato / RF-03, RF-04 e RF-08, RNF-02 e RNF-07 | `internal\quotation\service.go`: sequência preservada, sobreviventes válidas ordenadas e ausências; `request.go`: normalização/DTOs/origem; `handler.go`: allowlist e 200 completo/parcial ou 503 sem válidas | Testes de serviço, handler, cache e boot cobrem todos os motivos, validade final e cancelamento. `NewService`/`NewClient` básicos permanecem para compatibilidade dos testes originais, não são o boot |
+| Fan-out, fallback e contrato / RF-03, RF-04 e RF-08, RNF-02 e RNF-07 | `internal\quotation\service.go`: workers por parceira, slots exclusivos, junção, sobreviventes válidas ordenadas e ausências em ordem configurada; `request.go`: normalização/DTOs/origem; `handler.go`: allowlist e 200 completo/parcial ou 503 sem válidas | `sync.WaitGroup` da biblioteca padrão; testes de serviço, handler, cache e boot cobrem sobreposição, motivos, validade final e cancelamento. `NewService`/`NewClient` básicos permanecem seriais para compatibilidade dos testes originais, não são o boot |
 | Observabilidade / RF-09 e RNF-05 | Counters/eventos nos arquivos de parceiro/cache/serviço; `internal\platform\telemetry.go` conserva SDK e instrumentação HTTP; `deploy\otel\collector.yaml` roteia OTLP; `deploy\prometheus\prometheus.yml` raspa Collector | OpenTelemetry já existente, sem segundo SDK ou backend novo. Testes `telemetry_test.go`, exports e traces da seção 4.6 demonstram entrega real e ausência de dados privados nos sinais de negócio |
-| Empacotamento e execução | `go.mod`/`go.sum`, `Dockerfile`, `Makefile` e `docker-compose.yml`: imagem multi-stage e oito serviços do laboratório, com `loadgen` efêmero no perfil `load` | Compilação, suíte, smoke e preservação da base comprovados na seção 4.8; antes/depois em F-04/F-09 |
+| Empacotamento e execução | `go.mod`/`go.sum`, `Dockerfile`, `Makefile` e `docker-compose.yml`: imagem multi-stage e oito serviços do laboratório, com `loadgen` efêmero no perfil `load` | Compilação, suíte, smoke e preservação da base nas seções 4.8/4.9; antes/serial/paralelo em F-04/F-09/F-10 |
 
 O downgrade de go-redis em relação à tentativa inicial evitou um ticker global que não encerrava nos testes com `synctest`; a versão escolhida preserva o orçamento total e a integração RESP, sem mudar a versão Go exigida. Não foi criado breaker próprio para substituir a biblioteca; o adaptador só trata as exclusões e a instrumentação necessárias à política D-01.
 
@@ -932,6 +956,8 @@ Para `N=2.640.000`, definir `O=3N` oportunidades, `H` hits efetivos, `B` oportun
 “Hoje” é a referência aritmética fornecida, **não fatura medida**: o baseline tudo-ou-nada não chamava sempre a terceira parceira. O ganho de 60% para 100% de sucesso na curta carga local não permite faturar automaticamente R$ 660.000 em produção. Se cada parceira tiver hit rate diferente, usar `N × soma(1−h_por_parceira)`, não média sem ponderação ou probabilidade de as três estarem simultaneamente em cache.
 
 O cache implementado é **por parceira**, não de resposta agregada: cada hit evita uma consulta, não três. h usa hits sobre **todas** as oportunidades, inclusive erros Redis; os 93,66% de hit rate sem erros e 89,05% sobre oportunidades de F-09 não entram como previsão econômica. Os cinco riscos sintéticos não justificam h próximo de 98%. Se apenas 90% da repetição elegível de P-01 virar hit efetivo, h cai para **18%/36%**; se P-01 não se confirmar, recalcular abaixo sem ampliar TTL para melhorar planilha.
+
+**Revisão após D-05/F-10.** Paralelizar não muda os R$ 0,04 por HTTP nem P-01, validade, auditoria por proposta apresentada, infraestrutura/pessoal ou as fórmulas de TCO/payback. Na nova execução inteira, as 123 chamadas representariam **R$ 4,92**, contra 67/**R$ 2,68** seriais, se cada tentativa for faturada: **R$ 2,24 a mais**, não economia realizada. Falhas e chamadas admitidas continuam potencialmente pagas. Os 79,84% de hits efetivos sintéticos também não substituem h=20%/40%; os valores condicionais da seção 8 permanecem, sem desconto por latência. Mais respostas parciais podem reduzir faturabilidade se P-02 não for aprovada. O exemplo de aprendizagem serial `B=3` de 7.2 permanece apenas ilustrativo: fan-out/requisições concorrentes permitem `B>3`, não um novo teto financeiro de três consultas.
 
 ### 8.3 Auditoria por proposta apresentada e crescimento do acervo
 

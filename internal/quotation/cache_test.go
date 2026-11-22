@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -18,6 +20,7 @@ import (
 )
 
 type memoryQuoteCache struct {
+	mu             sync.Mutex
 	values         map[string][]byte
 	expirations    map[string]time.Time
 	getErr, setErr error
@@ -29,6 +32,8 @@ func newMemoryCache() *memoryQuoteCache {
 }
 
 func (c *memoryQuoteCache) Get(_ context.Context, key string) ([]byte, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.gets++
 	if c.getErr != nil {
 		return nil, c.getErr
@@ -42,6 +47,8 @@ func (c *memoryQuoteCache) Get(_ context.Context, key string) ([]byte, error) {
 }
 
 func (c *memoryQuoteCache) Set(_ context.Context, key string, value []byte, expiresAt time.Time) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.sets++
 	if c.setErr != nil {
 		return c.setErr
@@ -294,14 +301,15 @@ func TestQuoteCannotExpireDuringPartnerCallOrFinalComposition(t *testing.T) {
 		t.Run(fmt.Sprint(duringCall), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				store := newMemoryCache()
-				calls := 0
+				var calls atomic.Int32
 				service := cachedService(t, threePartners[:2], cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
-					calls++
+					calls.Add(1)
 					quote := originalQuote(p, 300)
-					if calls == 1 {
+					first := p.Name == threePartners[0].Name
+					if first {
 						quote.ValidForSeconds = 2
 					}
-					if (duringCall && calls == 1) || (!duringCall && calls == 2) {
+					if (duringCall && first) || (!duringCall && !first) {
 						time.Sleep(1500 * time.Millisecond)
 					}
 					return quote, nil
@@ -313,8 +321,8 @@ func TestQuoteCannotExpireDuringPartnerCallOrFinalComposition(t *testing.T) {
 					response.UnavailablePartners[0] != (UnavailablePartner{Partner: threePartners[0].Name, Reason: "expired"}) {
 					t.Fatalf("expired quote was presented: response=%+v err=%v", response, err)
 				}
-				if calls != 2 {
-					t.Fatalf("expired proposal was queried again: calls=%d want 2", calls)
+				if calls.Load() != 2 {
+					t.Fatalf("expired proposal was queried again: calls=%d want 2", calls.Load())
 				}
 			})
 		})
