@@ -29,14 +29,14 @@ func main() {
 		log.Fatalf("telemetry: %v", err)
 	}
 
-	api := quotation.NewAPI(
-		quotation.NewService(cfg.Partners, partner.NewClient()),
-		cfg.Tenants,
-	)
+	api, err := newAPI(cfg)
+	if err != nil {
+		log.Fatalf("partner protection: %v", err)
+	}
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           platform.InstrumentHandler(api.Routes(), cfg.Telemetry.ServiceName),
+		Handler:           platform.InstrumentHandler(api, cfg.Telemetry.ServiceName),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -58,4 +58,12 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server stopped: %v", err)
 	}
+}
+
+func newAPI(cfg platform.Config) (http.Handler, error) {
+	client, err := partner.NewResilientClient(cfg.Partners, cfg.Resilience)
+	if err != nil {
+		return nil, err
+	}
+	return quotation.NewAPI(quotation.NewService(cfg.Partners, client), cfg.Tenants).Routes(), nil
 }

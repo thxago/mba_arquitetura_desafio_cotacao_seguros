@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 )
@@ -96,5 +98,32 @@ func TestQuoteHonoursCancellation(t *testing.T) {
 
 	if _, err := NewClient().Quote(ctx, p, map[string]string{}); err == nil {
 		t.Fatal("cancelled context did not interrupt the call")
+	}
+}
+
+func TestResilientClientDoesNotFollowPriceRequestRedirects(t *testing.T) {
+	var destinationCalls atomic.Int32
+	destination := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		destinationCalls.Add(1)
+		_, _ = w.Write([]byte(validQuote))
+	}))
+	defer destination.Close()
+	p, closeServer := testPartner(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, destination.URL+"/quotes", http.StatusTemporaryRedirect)
+	}))
+	defer closeServer()
+	cfg, err := platform.LoadConfig(func(string) string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Resilience.PartnerTimeouts = map[string]time.Duration{p.Name: time.Second}
+	client, err := NewResilientClient([]platform.Partner{p}, cfg.Resilience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.Quote(context.Background(), p, nil)
+	requireKind(t, err, "upstream_error")
+	if destinationCalls.Load() != 0 {
+		t.Fatalf("redirect purchased %d additional quotes", destinationCalls.Load())
 	}
 }

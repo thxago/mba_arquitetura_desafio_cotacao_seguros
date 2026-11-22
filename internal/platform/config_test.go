@@ -3,6 +3,7 @@ package platform
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func env(pairs map[string]string) func(string) string {
@@ -35,6 +36,7 @@ func TestConfigReadsPartnersAndTenantsFromTheEnvironment(t *testing.T) {
 	cfg, err := LoadConfig(env(map[string]string{
 		"PORT":              "9090",
 		"PARTNER_ENDPOINTS": " a=http://a:8080/ , b=http://b:8080 ",
+		"PARTNER_TIMEOUTS":  " a=2s , b=500ms ",
 		"TENANTS":           " corretora-x , corretora-y ",
 	}))
 	if err != nil {
@@ -50,6 +52,73 @@ func TestConfigReadsPartnersAndTenantsFromTheEnvironment(t *testing.T) {
 	}
 	if cfg.Port != "9090" {
 		t.Errorf("port %q, want 9090", cfg.Port)
+	}
+}
+
+func TestResilienceConfiguration(t *testing.T) {
+	cfg, err := LoadConfig(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Resilience.BreakerFailureThreshold != 3 || cfg.Resilience.BreakerMaxRequests != 1 ||
+		cfg.Resilience.BreakerInterval != 10*time.Second || cfg.Resilience.BreakerOpenTimeout != 5*time.Second {
+		t.Fatalf("unexpected breaker policy: %+v", cfg.Resilience)
+	}
+	want := map[string]time.Duration{
+		"partner-slow": 2 * time.Second, "partner-flaky": 500 * time.Millisecond, "partner-degrading": time.Second,
+	}
+	if !reflect.DeepEqual(cfg.Resilience.PartnerTimeouts, want) {
+		t.Fatalf("timeouts %v, want %v", cfg.Resilience.PartnerTimeouts, want)
+	}
+
+	cfg, err = LoadConfig(env(map[string]string{
+		"PARTNER_ENDPOINTS":         "a=http://a:8080",
+		"PARTNER_TIMEOUTS":          "a=750ms",
+		"BREAKER_FAILURE_THRESHOLD": "4",
+		"BREAKER_MAX_REQUESTS":      "2",
+		"BREAKER_INTERVAL":          "12s",
+		"BREAKER_OPEN_TIMEOUT":      "7s",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := cfg.Resilience
+	if r.PartnerTimeouts["a"] != 750*time.Millisecond || r.BreakerFailureThreshold != 4 ||
+		r.BreakerMaxRequests != 2 || r.BreakerInterval != 12*time.Second || r.BreakerOpenTimeout != 7*time.Second {
+		t.Fatalf("environment policy not applied: %+v", r)
+	}
+}
+
+func TestInvalidResilienceConfigurationFails(t *testing.T) {
+	cases := map[string]map[string]string{
+		"missing timeout":    {"PARTNER_TIMEOUTS": "partner-slow=2s"},
+		"unknown partner":    {"PARTNER_TIMEOUTS": defaultTimeouts + ",other=1s"},
+		"repeated timeout":   {"PARTNER_TIMEOUTS": defaultTimeouts + ",partner-slow=1s"},
+		"zero timeout":       {"PARTNER_TIMEOUTS": "partner-slow=0s"},
+		"negative timeout":   {"PARTNER_TIMEOUTS": "partner-slow=-1s"},
+		"invalid timeout":    {"PARTNER_TIMEOUTS": "partner-slow=soon"},
+		"missing name":       {"PARTNER_TIMEOUTS": "=1s"},
+		"missing separator":  {"PARTNER_TIMEOUTS": "partner-slow"},
+		"empty timeouts":     {"PARTNER_TIMEOUTS": " "},
+		"new partner":        {"PARTNER_ENDPOINTS": "a=http://a:8080"},
+		"unsupported scheme": {"PARTNER_ENDPOINTS": "partner-slow=ftp://a:8080"},
+	}
+	for _, key := range []string{"BREAKER_FAILURE_THRESHOLD", "BREAKER_MAX_REQUESTS"} {
+		for _, value := range []string{"0", "-1", "three", "4294967296"} {
+			cases[key+"="+value] = map[string]string{key: value}
+		}
+	}
+	for _, key := range []string{"BREAKER_INTERVAL", "BREAKER_OPEN_TIMEOUT"} {
+		for _, value := range []string{"0s", "-1s", "soon", "999999999999999999999s"} {
+			cases[key+"="+value] = map[string]string{key: value}
+		}
+	}
+	for name, values := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := LoadConfig(env(values)); err == nil {
+				t.Fatalf("invalid resilience configuration accepted: %v", values)
+			}
+		})
 	}
 }
 

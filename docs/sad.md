@@ -1,8 +1,8 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.2 | 22/11/2026**
+**Solution Architecture Document | versão 0.3 | 22/11/2026**
 
-**Estado:** seções 1 a 4 elaboradas; decisões da seção 4 fixadas para o PoC; seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino é **proposta, ainda não implementada nem validada**. Somente o comportamento atual, as fontes externas verificadas e as medições identificadas como baseline são fatos verificados. Este documento parcial não declara o desafio concluído.
+**Estado:** seções 1 a 4 elaboradas; timeout e circuit breaker de D-01 implementados, com provas determinísticas e integração no boot. Cache, fallback e novos sinais de negócio permanecem propostos; seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino está **parcialmente implementada**, sem medição do depois nem comprovação das metas de carga. Este documento parcial não declara o desafio concluído.
 
 ## 1. Introdução
 
@@ -22,7 +22,7 @@ Este SAD orienta a extensão da API existente na fronteira com as parceiras. Par
 | F-04 | [Índice das evidências próprias](evidencias/README.md) e [saída completa do reproduce](evidencias/antes-reproduce.txt) | Baseline medido em 17/11/2026 |
 | F-05 | [Contexto da execução](evidencias/antes-contexto.json), [configuração efetiva](evidencias/antes-compose.json) e [metadados da captura](evidencias/antes-captura.json) | Commit, carga, ferramentas, horários e contagens |
 | F-06 | `internal\platform\telemetry.go`, `deploy\otel\collector.yaml` e `deploy\prometheus\prometheus.yml` | Caminho real da telemetria, intervalos e destinos |
-| F-07 | [gobreaker v2.4.0: código](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/gobreaker.go) e [módulo](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/go.mod), consultados em 22/11/2026 | API e semântica da biblioteca escolhida; dependência ainda não adicionada ao projeto |
+| F-07 | [gobreaker v2.4.0: código](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/gobreaker.go) e [módulo](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/go.mod), consultados em 22/11/2026 | API e semântica da biblioteca escolhida; dependência adicionada em `go.mod`/`go.sum` |
 | F-08 | `cmd\partner-mock\behavior.go`, `cmd\partner-mock\config.go`, `cmd\partner-mock\main.go` e `cmd\partner-mock\feasibility_test.go` | Latência efetiva, validade padrão, cancelamento e sequência determinística das parceiras |
 
 **Existente** significa conferido no código ou na configuração. **Medido** significa obtido na execução F-04, não copiado de exemplos do enunciado. **Pressuposto** é hipótese com consequência explícita na seção 1.5. **Proposto** é requisito ou desenho para implementação futura. As obrigações atribuídas a SUSEP e LGPD são as premissas fornecidas por F-01 para este exercício, não uma certificação jurídica independente.
@@ -51,7 +51,7 @@ Não fazem parte da implementação: motores das seguradoras, integrações reai
 | Prumo operadora, corretora controladora; minimização e descarte | Separar cache descartável de auditoria e excluir CPF, placa e `quote_id` de atributos de spans/métricas |
 | Ambiente local sem conta cloud e sem gasto obrigatório | Executar o PoC localmente; estimativas de produção não autorizam provisionamento |
 
-As decisões de breaker, timeout, cache e fallback estão fixadas na seção 4, mas ainda não implementadas. Não são restrições externas nem aprovações comerciais: são escolhas técnicas revisáveis com evidência, sob os pressupostos da seção 1.5. A hospedagem de produção será decidida na seção 5 por retenção, residência, segregação e custo. Os números de aceitação da seção 3 são metas propostas, não valores já configurados nem um SLA vendido.
+As decisões de breaker, timeout, cache e fallback estão fixadas na seção 4; somente breaker e timeout estão implementados nesta versão. Não são restrições externas nem aprovações comerciais: são escolhas técnicas revisáveis com evidência, sob os pressupostos da seção 1.5. A hospedagem de produção será decidida na seção 5 por retenção, residência, segregação e custo. Os números de aceitação da seção 3 são metas propostas, não um SLA vendido.
 
 ### 1.5 Pressupostos quantificados
 
@@ -132,15 +132,15 @@ F-04 mostra por que a intervenção se concentra nessa fronteira: no [trace lent
 
 ### 2.3 Contêineres - C4 nível 2 do depois, proposto
 
-**Todo comportamento de resiliência desenhado abaixo é proposta.** Os contêineres já existem; sua presença não comprova integração de cache, timeout, breaker, fallback ou novas métricas. A proposta mantém a agregação sequencial como ponto de partida, sem depender do bônus.
+**O desenho abaixo representa o destino completo, ainda parcialmente proposto.** Timeout e breaker estão ligados no boot; cache, fallback e novas métricas ainda não. A presença dos contêineres não comprova essas integrações pendentes. A agregação continua sequencial, sem depender do bônus.
 
 ```mermaid
 flowchart LR
     broker(["Corretor<br/>Pessoa externa"])
     operator(["Operacao<br/>Pessoa interna"])
     load["loadgen<br/>Conteiner Go existente - mesma carga de teste"]
-    subgraph prumo["Prumo Cota - destino proposto, ainda nao implementado"]
-        api["quotation-api<br/>Conteiner Go existente<br/>PROPOSTA: cache, timeout, breaker e fallback"]
+    subgraph prumo["Prumo Cota - destino com implementacao parcial"]
+        api["quotation-api<br/>Timeout e breaker implementados<br/>PROPOSTA: cache e fallback"]
         redis[("redis<br/>Conteiner existente<br/>PROPOSTA: cache isolado por tenant e risco")]
         collector["otel-collector<br/>Conteiner existente - mesmo pipeline"]
         jaeger["jaeger<br/>Conteiner existente - traces"]
@@ -192,12 +192,12 @@ Nos requisitos abaixo, “existente” é comportamento a preservar; “novo” 
 | RF-04 | Toda proposta apresentada deve preservar seguradora, identificador e prêmio da resposta original de parceira, inclusive no cache/fallback; nenhum prêmio pode ser calculado pela plataforma | Fonte F-01 e estrutura `partner.Quote` em `internal\partner\client.go`; conferir resposta contra stub de parceira e, futuramente, entrada armazenada e sua origem |
 | RF-05 | Encaminhar a corretora no campo `broker` da consulta à parceira e nunca reutilizar, para uma corretora, a entrada de cache de outra, mesmo para o mesmo risco | Encaminhamento existente em `internal\quotation\service.go`; isolamento de cache novo e obrigatório por F-01. Provar com duas corretoras e respostas distintas |
 | RF-06 | Para risco normalizado e tenant elegíveis, reutilizar proposta rastreável no Redis dentro da validade decidida; em miss, obter dados de parceira conforme a política, sem registrar resposta inválida como cotação válida | **Novo da arquitetura**: cache ainda não integrado; testar hit, miss, expiração e isolamento. Chave literal, granularidade e TTL definidos na seção 4.3 |
-| RF-07 | Bloquear chamadas externas abrangidas por um circuito aberto; tornar verificáveis fechado, aberto e meio aberto e limitar espera por timeout conforme parâmetros previamente defendidos | **Novo da arquitetura**: ausência de proteção em `internal\partner\client.go`; teste determinístico deve provar zero chamadas no estado aberto e transições sem depender de `sleep` |
+| RF-07 | Bloquear chamadas externas abrangidas por um circuito aberto; tornar verificáveis fechado, aberto e meio aberto e limitar espera por timeout conforme parâmetros previamente defendidos | **Implementado**: `internal\partner\client.go`; `internal\partner\resilience_test.go` prova estados, timeout e zero chamadas em aberto com relógio virtual; `cmd\quotation-api\main_test.go` prova ligação do breaker configurado ao boot |
 | RF-08 | Ao ocorrer falha, timeout ou curto-circuito, devolver o resultado de negócio definido na seção 4 com degradação identificável pelo consumidor; se apresentar cache anterior, informar origem e idade; se apresentar resposta parcial, identificar ausentes; se recusar, devolver erro de negócio distinguível e orientação | **Novo da arquitetura**: hoje falha externa resulta em 502 genérico de parceira. Provar cenários controlados e documentar o contrato escolhido; log sozinho não atende |
 | RF-09 | Expor sinais observáveis de estado/transição do breaker, hit/miss de cache e latência por parceira, e marcar no trace resposta de cache e requisição curto-circuitada | **Novo da arquitetura**: F-06 fornece apenas instrumentação genérica. Conferir emissão real, consulta PromQL e traces; nomes propostos fixados na seção 4.6, ainda sem emissão das novas métricas |
 | RF-10 | Para cada cotação efetivamente apresentada, permitir reconstruir seguradora, prêmio, corretora e instante, ligando cache/fallback à consulta original, e prever registro durável imutável | **Produção proposta**, obrigação F-01; seção 5 deverá projetar o mecanismo, seção 7 a recuperação e seção 8 o custo. Aceite por desenho e dimensionamento; persistência regulatória não é alegada como entregue pelo PoC |
 
-RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção, não são capacidades atuais. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
+RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção; somente RF-07 está implementado nesta etapa. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
 
 ### 3.3 Baseline próprio e condições de comparação
 
@@ -249,7 +249,7 @@ A janela absoluta foi `2026-11-17T21:20:31Z` a `2026-11-17T21:21:50Z`, com passo
 
 O SDK exporta métricas a cada 10 s e o Prometheus raspa o Collector a cada 5 s (F-06); a carga é curta e há defasagem entre a requisição e sua observação. Não preencher lacunas como zero. Os arquivos exportados de F-04 permanecem a fonte do antes mesmo após expirar a retenção ou derrubar o Compose.
 
-Ainda não há métricas de breaker/cache implementadas. Os nomes propostos estão na seção 4.6; a implementação deverá emiti-los e a seção 6 associá-los a limiares e ações. Timeout, breaker e validade terão provas determinísticas próprias; não são demonstrados apenas por um p95 menor numa carga que repete riscos.
+Ainda não há métricas de breaker/cache implementadas. Os nomes propostos estão na seção 4.6; a implementação deverá emiti-los e a seção 6 associá-los a limiares e ações. Timeout e breaker já possuem provas determinísticas próprias; validade de cache ainda não. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
 
 ### 3.6 Rastreabilidade para as próximas seções
 
@@ -261,7 +261,7 @@ Ainda não há métricas de breaker/cache implementadas. Os nomes propostos est�
 
 ## 4. Detalhamento da arquitetura
 
-**Decidido para implementação, ainda não implementado.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. Não há novos resultados de execução nesta seção: os parâmetros são escolhas defendidas por código do cenário e baseline, não medições do depois. Antes de alterá-los durante o PoC, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
+**D-01 implementada; D-02 e D-03 ainda propostas.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. As provas de D-01 estão na seção 4.8; não há medições de carga do depois. Os parâmetros continuam escolhas defendidas por código do cenário e baseline. Antes de alterá-los durante o PoC, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
 
 ### 4.1 Sequência de atendimento e orçamento de espera
 
@@ -274,7 +274,7 @@ Manter a ordem configurada das três parceiras, sem paralelizar. Depois de valid
 
 Não há retry, renovação de TTL no hit, busca de preço fabricado nem chamada de atualização em segundo plano. O cancelamento da requisição pelo consumidor encerra o trabalho; não é motivo para continuar comprando consultas.
 
-| Parâmetro proposto | Valor padrão e local de aplicação futura | Justificativa e custo da escolha |
+| Parâmetro decidido | Valor padrão e local de aplicação (Redis ainda futuro) | Justificativa e custo da escolha |
 | --- | --- | --- |
 | Timeout HTTP da `partner-slow` | **2 s**, no `http.Client.Timeout` usado por essa parceira | F-08 aplica 1.500 ms mais jitter de 0 a menos de 200 ms, não ±200 ms. Há cerca de 300 ms de margem sobre 1.700 ms; o trace próprio de 1.699,726 ms cabe. A margem é orçamento, não p99 de rede medido |
 | Timeout HTTP da `partner-flaky` | **500 ms**, no cliente dessa parceira | F-08 aplica 150 ms mais até 50 ms de jitter; sobra aproximadamente 300 ms para transporte. A falha 503 é sinal imediato, sem esperar o teto |
@@ -285,7 +285,9 @@ O teto de tempo externo orçado para um miss nas três parceiras é `2 + 0,5 + 1
 
 O teto de 6.000 ms do cenário limita o **acréscimo** de degradação, não toda a latência: F-08 soma base, jitter e acréscimo. Esse detalhe explica por que o trace supera 6 s. O timeout de 1 s corta esse caminho sem alterar o mock.
 
-As configurações **a acrescentar**, não disponíveis hoje em `internal\platform\config.go`, serão `PARTNER_TIMEOUTS="partner-slow=2s,partner-flaky=500ms,partner-degrading=1s"`, `BREAKER_FAILURE_THRESHOLD=3`, `BREAKER_INTERVAL=10s`, `BREAKER_OPEN_TIMEOUT=5s`, `BREAKER_MAX_REQUESTS=1`, `CACHE_TTL=300s` e `REDIS_OPERATION_TIMEOUT=20ms`. O Redis usará endereço configurável, padrão `redis:6379` no Compose. Validar nomes de parceiras e durações positivas; TTL não pode exceder 300 s nesta decisão. Configuração inválida deve impedir o boot, não desativar proteção silenciosamente.
+As configurações **implementadas** em `internal\platform\config.go` são `PARTNER_TIMEOUTS="partner-slow=2s,partner-flaky=500ms,partner-degrading=1s"`, `BREAKER_FAILURE_THRESHOLD=3`, `BREAKER_INTERVAL=10s`, `BREAKER_OPEN_TIMEOUT=5s` e `BREAKER_MAX_REQUESTS=1`, também expostas no serviço da API no Compose. Durações e contadores devem ser positivos. A lista de timeouts deve corresponder exatamente aos nomes em `PARTNER_ENDPOINTS`, sem duplicatas: ao personalizar a lista de parceiras, fornecer a lista completa em `PARTNER_TIMEOUTS`. Configuração inválida impede o boot, sem proteção silenciosamente desativada.
+
+**Ainda propostas:** `CACHE_TTL=300s`, `REDIS_OPERATION_TIMEOUT=20ms` e endereço Redis configurável, padrão `redis:6379` no Compose. TTL não poderá exceder 300 s nesta decisão.
 
 O timeout HTTP cobre conexão e leitura do corpo; a validação da resposta ocorre dentro da execução protegida. Redirecionamentos de consultas de preço não devem ser seguidos: resposta diferente de 200 é falha, sem comprar outra consulta implicitamente. A biblioteca cliente Redis ainda será escolhida na implementação, exigindo prazo total e retries desabilitados.
 
@@ -295,7 +297,7 @@ O timeout HTTP cobre conexão e leitura do corpo; a validação da resposta ocor
 
 **Opções consideradas.** Um único breaker global é simples, mas faria uma falha bloquear todas as seguradoras. Um breaker por par (parceira, tenant) isola observações comerciais, porém duplica aprendizagem da mesma indisponibilidade e multiplica estado por corretora. Um breaker por parceira compartilha a percepção de saúde da dependência e mantém as outras independentes. Implementar máquina de estados própria facilitaria injetar relógio, mas acrescentaria manutenção de admissões concorrentes, gerações e callbacks. Política percentual exigiria amostra mínima e poderia oscilar junto dos 40% esperados.
 
-**Escolha.** Usar **`github.com/sony/gobreaker/v2`, versão v2.4.0**, um `CircuitBreaker[partner.Quote]` por nome de parceira e por processo, compartilhado pelos tenants, criado no boot e reutilizado. O módulo e a API foram verificados em F-07: estados explícitos, exclusão de erros, callback de transição e proteção concorrente. O módulo exige Go 1.22, compatível com Go 1.25. A dependência ainda **não consta de `go.mod`**.
+**Escolha.** Usar **`github.com/sony/gobreaker/v2`, versão v2.4.0**, um `CircuitBreaker[partner.Quote]` por nome de parceira e por processo, compartilhado pelos tenants, criado no boot e reutilizado. O módulo e a API foram verificados em F-07: estados explícitos, exclusão de erros, callback de transição e proteção concorrente. O módulo exige Go 1.22, compatível com Go 1.25. A dependência está fixada em `go.mod`/`go.sum`.
 
 | Regra escolhida | Parametrização exata | Razão e efeito |
 | --- | --- | --- |
@@ -316,7 +318,7 @@ No estado aberto, a função que faz HTTP **não é executada**. Chamadas já ad
 
 **Defesa determinística.** F-08 prende as nove falhas nas sequências **49 a 57**; a terceira falha da rajada já basta quando observada sem sucesso intermediário dentro da janela. `docs\smoke-test-factibilidade.md` e o teste de factibilidade mostram abertura na requisição 9 para uma política de três consecutivas, e uma simulação de cinco abre na 42. São referências do cenário, **não prova de que esta configuração temporal abriu**: a simulação original conta cooldown por requisições e exige duas recuperações, enquanto esta decisão usa 5 s e uma sondagem. Cache também pode impedir que a API chegue à sequência 49. Com concorrência, ordem de conclusão e ordem da semente diferem; não prometer um número de requisição exato para o PoC.
 
-O teste futuro deverá provocar três falhas em sequência por transporte controlado, verificar abertura, ausência de uma quarta chamada e recuperação/reabertura após o prazo. Para verificar janela e cooldown sem espera real, usar o relógio virtual de `testing/synctest` do Go 1.25 com transporte em memória e timers; não calibrar `sleep` na máquina nem abrir sockets reais dentro da prova de relógio. A prova de integração contra defaults será separada, conforme seção 4.8.
+O teste `internal\partner\resilience_test.go` provoca três falhas em sequência por transporte controlado, verifica abertura, ausência de uma quarta chamada e recuperação/reabertura após o prazo. Janela e cooldown usam o relógio virtual de `testing/synctest` do Go 1.25 com transporte em memória e timers; `time.Sleep` avança apenas tempo virtual, sem calibrar espera real nem abrir sockets. A integração da composição usada pelo boot tem teste próprio; a prova contra os mocks com seus perfis padrão permanece separada e pendente, conforme seção 4.8.
 
 **Consequências, inclusive negativas.** A `partner-slow` saudável continua acessível quando a instável abre; cada chamada realmente evitada representa até R$ 0,04 não comprado. Em contrapartida, três falhas podem bloquear por 5 s chamadas que teriam sucesso; uma única sondagem bem-sucedida pode fechar cedo e voltar a oscilar. A janela fixa perde histórico na borda. Sem tráfego elegível, não há sondagem ativa: a transição temporal é avaliada na próxima admissão/consulta de estado. Todos os tenants compartilham o efeito de abertura de uma parceira. Esses custos integram operação, DR e TCO futuros, não justificam adicionar retry ou coordenação distribuída.
 
@@ -414,7 +416,7 @@ flowchart LR
         handler["Handler HTTP e normalizacao<br/>internal/quotation/handler.go e request.go"]
         service["Agregador serial e fallback<br/>internal/quotation/service.go"]
         cache["Cache por tenant, risco e parceira<br/>Responsabilidade nova do fluxo quotation"]
-        protected["Cliente protegido e breaker por parceira<br/>internal/partner/client.go - gobreaker v2 proposto"]
+        protected["Cliente protegido e breaker por parceira<br/>internal/partner/client.go - gobreaker v2 implementado"]
         http["Cliente HTTP com timeout por parceira<br/>Extensao de internal/partner/client.go"]
         signals["Sinais de negocio propostos<br/>Reutilizam SDK de internal/platform/telemetry.go"]
     end
@@ -496,14 +498,16 @@ A mistura de preços/instantes não é observada necessariamente no mock: F-08 c
 
 ### 4.8 Escopo implementável e provas pendentes
 
-**Até esta versão:** somente base, ambiente e evidências do antes existem em execução; D-01 a D-03, contrato e novos sinais são decisões documentadas. Nenhum cache ou breaker novo foi instalado/configurado por esta tarefa.
+**Até esta versão:** base, ambiente, evidências do antes e D-01 estão implementados. `partner.NewResilientClient` cria no boot os clientes HTTP com timeout e breakers por parceira; configuração inválida falha na inicialização. O callback apenas registra transições em log, sem rede nem consulta recursiva de estado. D-02, D-03 e novos sinais de negócio continuam pendentes: a API ainda agrega em série, aborta no primeiro erro e retorna 502 na falha de parceira. Não há alegação de fallback parcial ou cache entregue.
 
-O PoC deverá estender `internal\partner\client.go` para D-01; `internal\quotation\service.go` para cache e composição parcial; `internal\quotation\request.go` e `internal\quotation\handler.go` para metadados e recusa; e configuração/boot para ligar essas dependências. Novos testes de resiliência devem ser adicionados, preservando a suíte original. A composição resiliente pode ser ligada explicitamente no boot, mantendo o construtor básico usado nos testes de contrato legado; **isso não autoriza manter a API entregue no modo tudo-ou-nada**. Teste de integração deve provar que o boot usa o fluxo novo.
+`internal\partner\resilience_test.go` cobre abertura e curto-circuito, uma sondagem em meio aberto, fechamento/reabertura, reset por sucesso e janela fixa, timeout de cabeçalhos/corpo, exclusão de cancelamento/prazo do consumidor, liberação da sondagem excluída, isolamento entre parceiras e conclusões tardias. Respostas inválidas e erros locais são diferenciados. `internal\partner\client_test.go` verifica também ausência de redirecionamento; `internal\platform\config_test.go` verifica configuração válida/inválida. `cmd\quotation-api\main_test.go` exercita a composição efetivamente chamada por `main` através de `POST /quotes`, incluindo o limiar personalizado e compartilhamento entre tenants.
+
+O PoC estendeu `internal\partner\client.go`, configuração e boot para D-01. Ainda deverá estender `internal\quotation\service.go` para cache e composição parcial, `internal\quotation\request.go` e `internal\quotation\handler.go` para metadados e recusa, e ligar essas dependências no boot. A suíte original permanece, com a configuração de parceiras personalizadas agora acompanhada dos timeouts exigidos. `NewClient` conserva o construtor básico sem breaker usado nos testes legados; o boot usa exclusivamente `NewResilientClient`, comprovado pelo teste de integração. **Isso não autoriza manter a entrega final no modo tudo-ou-nada**; essa mudança de contrato ocorrerá futuramente.
 
 | Prova a produzir nas tarefas de código/evidência | Condição de aceite específica |
 | --- | --- |
-| Breaker com relógio virtual | Três falhas em janela abrem; tentativa seguinte não executa transporte; após 5 s uma sondagem é admitida; sucesso fecha e falha reabre; cancelamento do consumidor não altera saúde |
-| Timeout com transporte controlado | Prazo próprio expira e conta como falha; diferenciar de cancelamento do consumidor e provar timeout da degradante sem esperar teto de 6 s |
+| Breaker com relógio virtual — implementada | Três falhas em janela abrem; tentativa seguinte não executa transporte; após 5 s uma sondagem é admitida; sucesso fecha e falha reabre; cancelamento do consumidor não altera saúde |
+| Timeout com transporte controlado — implementada | Prazo próprio expira e conta como falha; diferenciar de cancelamento do consumidor e provar timeout da degradante sem esperar teto de 6 s |
 | Cache e isolamento | Duas corretoras, mesmo risco, não compartilham entrada; alterar qualquer campo relevante altera a chave; hit não chama HTTP nem estende expiração; vencimento não serve stale |
 | Fallback e Redis indisponível | Parceira indisponível não apaga propostas válidas das demais; motivos/origem/idade aparecem; zero válidas gera 503, não 200 vazio; erro de Redis respeita prazo e permite consulta externa |
 | Execução padrão do depois | `make down` e `make reproduce`, mesmos defaults e carga; capturar antes de derrubar, conforme seção 3; só ela serve de comparação quantitativa |
