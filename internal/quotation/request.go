@@ -62,12 +62,27 @@ type partnerRequest struct {
 	Request
 }
 
+const (
+	statusComplete    = "complete"
+	statusPartial     = "partial"
+	statusUnavailable = "unavailable"
+)
+
 type Response struct {
-	TenantID    string  `json:"tenant_id"`
-	Quotes      []Quote `json:"quotes"`
-	ElapsedMs   int64   `json:"elapsed_ms"`
-	CacheStatus string  `json:"cache_status,omitempty"`
-	Degraded    bool    `json:"degraded"`
+	TenantID            string               `json:"tenant_id"`
+	Quotes              []Quote              `json:"quotes"`
+	ElapsedMs           int64                `json:"elapsed_ms"`
+	Status              string               `json:"status"`
+	CacheStatus         string               `json:"cache_status,omitempty"`
+	Degraded            bool                 `json:"degraded"`
+	UnavailablePartners []UnavailablePartner `json:"unavailable_partners"`
+	Error               string               `json:"error,omitempty"`
+	Action              string               `json:"action,omitempty"`
+}
+
+type UnavailablePartner struct {
+	Partner string `json:"partner"`
+	Reason  string `json:"reason"`
 }
 
 type Quote struct {

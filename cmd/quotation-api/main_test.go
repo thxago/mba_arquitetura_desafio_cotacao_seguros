@@ -45,8 +45,21 @@ func TestBootWiresSharedPartnerBreakerIntoQuoteRoute(t *testing.T) {
 		req.Header.Set("X-Tenant-Id", []string{"corretora-a", "corretora-b"}[i%2])
 		recorder := httptest.NewRecorder()
 		api.ServeHTTP(recorder, req)
-		if recorder.Code != http.StatusBadGateway || !strings.Contains(recorder.Body.String(), "partner-flaky") {
+		if recorder.Code != http.StatusServiceUnavailable {
 			t.Fatalf("unexpected failure response: %d %s", recorder.Code, recorder.Body)
+		}
+		var response quotation.Response
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		reason := "upstream_error"
+		if i >= 2 {
+			reason = "circuit_open"
+		}
+		if response.Status != "unavailable" || response.Error != "no_valid_quotes" ||
+			len(response.Quotes) != 0 || len(response.UnavailablePartners) != 1 ||
+			response.UnavailablePartners[0] != (quotation.UnavailablePartner{Partner: "partner-flaky", Reason: reason}) {
+			t.Fatalf("unavailable contract lost breaker reason: %+v", response)
 		}
 	}
 	if calls.Load() != 2 {
@@ -147,10 +160,11 @@ func TestBootCachesPerTenantAndPartnerBeforeBreakerAndSurvivesRedisOutage(t *tes
 	fail.Store(true)
 	differentRisk := strings.ReplaceAll(body, `"Gol"`, `"Other"`)
 	for i := 0; i < 2; i++ {
-		post(api, "corretora-a", differentRisk, http.StatusBadGateway)
+		post(api, "corretora-a", differentRisk, http.StatusServiceUnavailable)
 	}
-	_ = post(api, "corretora-a", body, http.StatusOK)
-	if calls.Load() != 6 {
+	cachedWithOpenBreakers := post(api, "corretora-a", body, http.StatusOK)
+	if calls.Load() != 8 || cachedWithOpenBreakers.Status != "complete" || cachedWithOpenBreakers.Degraded ||
+		len(cachedWithOpenBreakers.UnavailablePartners) != 0 || cachedWithOpenBreakers.CacheStatus != "available" {
 		t.Fatalf("valid cache hit reached open breaker/upstream: calls=%d", calls.Load())
 	}
 
@@ -162,12 +176,103 @@ func TestBootCachesPerTenantAndPartnerBeforeBreakerAndSurvivesRedisOutage(t *tes
 	}
 	t.Cleanup(func() { _ = closeWithoutRedis() })
 	degraded := post(withoutRedis, "corretora-a", body, http.StatusOK)
-	if degraded.CacheStatus != "unavailable" || !degraded.Degraded || len(degraded.Quotes) != 2 {
+	if degraded.CacheStatus != "unavailable" || !degraded.Degraded || len(degraded.Quotes) != 2 ||
+		degraded.Status != "complete" || len(degraded.UnavailablePartners) != 0 {
 		t.Fatalf("cache outage not explicit or fresh proposals lost: %+v", degraded)
 	}
 	for _, quote := range degraded.Quotes {
 		if quote.Source != "partner" {
 			t.Fatalf("cache outage fabricated a cache hit: %+v", quote)
 		}
+	}
+}
+
+func TestBootReturnsPartialQuotesAndExplicitRefusal(t *testing.T) {
+	redisServer := miniredis.RunT(t)
+	var calls atomic.Int32
+	var failAll atomic.Bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if failAll.Load() || strings.HasPrefix(r.URL.Path, "/flaky/") {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		price := 200
+		if strings.HasPrefix(r.URL.Path, "/degrading/") {
+			price = 100
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"quote_id": r.URL.Path, "premium_cents": price, "currency": "BRL",
+			"coverage_cents": 100000, "valid_for_seconds": 300,
+		})
+	}))
+	defer upstream.Close()
+	values := map[string]string{
+		"PARTNER_ENDPOINTS": "partner-slow=" + upstream.URL + "/slow,partner-flaky=" + upstream.URL +
+			"/flaky,partner-degrading=" + upstream.URL + "/degrading",
+		"BREAKER_FAILURE_THRESHOLD": "2",
+		"OTEL_SDK_DISABLED":         "true",
+		"REDIS_ADDR":                redisServer.Addr(),
+		"REDIS_OPERATION_TIMEOUT":   "1s",
+	}
+	cfg, err := platform.LoadConfig(func(key string) string { return values[key] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	api, closeCache, err := newAPI(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = closeCache() })
+	body := `{"driver":{"document":"12345678901","birth_year":1988},"vehicle":{"plate":"ABC1D23","model":"Gol","year":2020,"value_cents":8500000}}`
+	for i := 0; i < 4; i++ {
+		payload := body
+		wantCode, wantStatus, wantQuotes := http.StatusOK, "partial", 2
+		if i == 3 {
+			failAll.Store(true)
+			payload = strings.ReplaceAll(body, `"Gol"`, `"New risk"`)
+			wantCode, wantStatus, wantQuotes = http.StatusServiceUnavailable, "unavailable", 0
+		}
+		req := httptest.NewRequest(http.MethodPost, "/quotes", strings.NewReader(payload))
+		req.Header.Set("X-Tenant-Id", "corretora-a")
+		recorder := httptest.NewRecorder()
+		api.ServeHTTP(recorder, req)
+		var response quotation.Response
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatal(err)
+		}
+		if recorder.Code != wantCode || response.Status != wantStatus || !response.Degraded ||
+			response.CacheStatus != "available" || len(response.Quotes) != wantQuotes {
+			t.Fatalf("API boot did not use partial/refusal contract: HTTP=%d response=%+v", recorder.Code, response)
+		}
+		if i < 3 {
+			reason, source := "upstream_error", "partner"
+			if i >= 1 {
+				source = "cache"
+			}
+			if i == 2 {
+				reason = "circuit_open"
+			}
+			if len(response.UnavailablePartners) != 1 ||
+				response.UnavailablePartners[0] != (quotation.UnavailablePartner{Partner: "partner-flaky", Reason: reason}) ||
+				recorder.Header().Get("X-Tenant-Id") != "corretora-a" {
+				t.Fatalf("partial quote lost missing partner/tenant: %+v", response)
+			}
+			for j, quote := range response.Quotes {
+				name, path, price := "partner-degrading", "/degrading/quotes", int64(100)
+				if j == 1 {
+					name, path, price = "partner-slow", "/slow/quotes", 200
+				}
+				if quote.Partner != name || quote.QuoteID != path || quote.PremiumCents != price ||
+					quote.Source != source || quote.ValidForSeconds < 1 || quote.QuotedAt.IsZero() || quote.ExpiresAt.IsZero() {
+					t.Fatalf("partial quote lost price/order/origin: %+v", quote)
+				}
+			}
+		} else if response.Error != "no_valid_quotes" || response.Action == "" || len(response.UnavailablePartners) != 3 {
+			t.Fatalf("empty quote was not refused with guidance: %+v", response)
+		}
+	}
+	if calls.Load() != 6 {
+		t.Fatalf("aggregation aborted, bypassed cache/breaker or retried: calls=%d want 6", calls.Load())
 	}
 }

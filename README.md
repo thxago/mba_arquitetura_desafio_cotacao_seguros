@@ -1,5 +1,23 @@
 # Desafio: Fundamentos de Arquitetura de Solução
 
+## Contrato atual do PoC
+
+Timeout, circuit breaker, cache isolado e fallback parcial estão implementados na API. O restante deste README preserva o enunciado original e sua descrição do **baseline**, não o estado atual do código. Instrumentação de negócio e evidências do depois ainda estão pendentes.
+
+| HTTP | `status` | Resultado |
+| --- | --- | --- |
+| 200 | `complete` | Todas as parceiras configuradas têm proposta válida |
+| 200 | `partial` | Ao menos uma proposta válida, com ausentes em `unavailable_partners` |
+| 503 | `unavailable` | Nenhuma proposta válida: `quotes=[]`, `error=no_valid_quotes` e `action` com orientação à corretora |
+
+O 503 substitui o antigo 502 de indisponibilidade das parceiras. A ação de recusa é: “Solicite uma nova cotação mais tarde ou contate o suporte da corretora.” Não há retry automático. Os motivos públicos são `timeout`, `circuit_open`, `half_open_limit`, `upstream_error`, `invalid_response` e `expired`, sem mensagens internas ou URLs.
+
+Cada proposta mantém seguradora, identificador e prêmio originais e informa `source` (`partner`/`cache`), `quoted_at`, `expires_at` e `age_seconds`. **`valid_for_seconds` agora significa validade restante**, inclusive na resposta fresca; hits não renovam o prazo e propostas vencidas nunca são apresentadas. A ordenação crescente por prêmio e o cabeçalho `X-Tenant-Id` de sucesso permanecem.
+
+`degraded=true` indica resposta parcial/indisponível ou falha Redis; uma resposta `complete` pode estar degradada se `cache_status=unavailable`. Cache válido, por si só, não significa degradação. Permanecem as validações 400/403, as coberturas `comprehensive`/`third_party` e `GET /healthz`. Decisões e limites: [SAD, seção 4](docs/sad.md#4-detalhamento-da-arquitetura).
+
+## Enunciado original
+
 Uma plataforma de cotação de seguro auto que funciona mal: consulta três seguradoras parceiras em série, aguarda sem timeout configurado e devolve erro inteiro quando qualquer uma falha. Tudo o que é preciso para reproduzir essa degradação já está neste repositório; nada do que a resolve está.
 
 A entrega são duas peças que valem por uma só: um SAD (Solution Architecture Document) que decide e justifica, e um PoC que implementa a fatia decidida e prova, com evidência medida por você, que ela funciona. O documento vem primeiro; o código é subordinado a ele.

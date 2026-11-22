@@ -78,6 +78,9 @@ func (s *Service) quoteWithCache(ctx context.Context, tenant string, p platform.
 
 	requestedAt := time.Now().UTC()
 	quote, err := s.quoter.Quote(ctx, p, request)
+	if ctx.Err() != nil {
+		return Quote{}, unavailable, ctx.Err()
+	}
 	if err != nil {
 		return Quote{}, unavailable, err
 	}

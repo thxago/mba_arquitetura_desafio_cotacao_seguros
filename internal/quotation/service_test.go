@@ -4,8 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
@@ -150,4 +154,88 @@ func serialize(t *testing.T, v any) string {
 		t.Fatalf("json.Marshal: %v", err)
 	}
 	return string(b)
+}
+
+func TestPartialQuoteContinuesAfterFailuresAndPreservesSortedOrigins(t *testing.T) {
+	for _, reason := range []string{"timeout", "circuit_open", "half_open_limit", "upstream_error", "invalid_response", "expired", "private_reason"} {
+		t.Run(reason, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var calls []string
+				service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
+					calls = append(calls, p.Name)
+					if p.Name == threePartners[0].Name {
+						return partner.Quote{}, fmt.Errorf("wrapped: %w", &partner.Error{
+							Partner: "untrusted-name", Kind: reason, Reason: "http://internal/private-details",
+							Cause: context.DeadlineExceeded,
+						})
+					}
+					quote := originalQuote(p, 300)
+					quote.QuoteID = "original-" + p.Name
+					quote.PremiumCents = defaultPremiums()[p.Name]
+					return quote, nil
+				}), newMemoryCache(), 300*time.Second)
+				response, err := service.Quote(context.Background(), "corretora-a", validRequest())
+				wantReason := reason
+				if reason == "private_reason" {
+					wantReason = "upstream_error"
+				}
+				if err != nil || response.Status != statusPartial || !response.Degraded ||
+					response.CacheStatus != "available" || len(response.Quotes) != 2 ||
+					response.Error != "" || response.Action != "" ||
+					!reflect.DeepEqual(response.UnavailablePartners, []UnavailablePartner{{Partner: threePartners[0].Name, Reason: wantReason}}) {
+					t.Fatalf("unexpected partial response: %+v err=%v", response, err)
+				}
+				wantCalls := []string{threePartners[0].Name, threePartners[1].Name, threePartners[2].Name}
+				if !reflect.DeepEqual(calls, wantCalls) {
+					t.Fatalf("failed partner stopped or retried aggregation: %v", calls)
+				}
+				for i, name := range []string{"partner-flaky", "partner-degrading"} {
+					quote := response.Quotes[i]
+					if quote.Partner != name || quote.QuoteID != "original-"+name || quote.PremiumCents != defaultPremiums()[name] ||
+						quote.Source != "partner" || quote.ValidForSeconds != 300 || quote.AgeSeconds != 0 ||
+						quote.ExpiresAt.Sub(quote.QuotedAt) != 300*time.Second {
+						t.Fatalf("sort detached original proposal or metadata: %+v", quote)
+					}
+				}
+				body := serialize(t, response)
+				if strings.Contains(body, "http://internal") || strings.Contains(body, "untrusted-name") || strings.Contains(body, "private_reason") {
+					t.Fatalf("internal error leaked to contract: %s", body)
+				}
+			})
+		})
+	}
+}
+
+func TestConsumerCancellationDiscardsPartialResultsAndStopsPurchasing(t *testing.T) {
+	for _, deadline := range []bool{false, true} {
+		t.Run(fmt.Sprint(deadline), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(context.Background())
+				if deadline {
+					cancel()
+					ctx, cancel = context.WithTimeout(context.Background(), 50*time.Millisecond)
+				}
+				defer cancel()
+				calls := 0
+				store := newMemoryCache()
+				service := cachedService(t, threePartners, cacheQuoterFunc(func(_ context.Context, p platform.Partner, _ any) (partner.Quote, error) {
+					calls++
+					if calls == 2 {
+						if deadline {
+							<-ctx.Done()
+						} else {
+							cancel()
+						}
+					}
+					return originalQuote(p, 300), nil
+				}), store, 300*time.Second)
+				response, err := service.Quote(ctx, "corretora-a", validRequest())
+				if !errors.Is(err, ctx.Err()) || err == nil || len(response.Quotes) != 0 ||
+					calls != 2 || store.gets != 2 || store.sets != 1 {
+					t.Fatalf("canceled consumer got partial output or bought more work: response=%+v calls=%d writes=%d err=%v",
+						response, calls, store.sets, err)
+				}
+			})
+		})
+	}
 }

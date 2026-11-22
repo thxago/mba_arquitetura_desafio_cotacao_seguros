@@ -207,8 +207,9 @@ func TestCacheExpiresAtEffectiveValidityAndNeverServesStale(t *testing.T) {
 				time.Sleep(current.ExpiresAt.Sub(time.Now()))
 				fail = true
 				response, err := service.Quote(context.Background(), "corretora-a", validRequest())
-				var failure *partner.Error
-				if !errors.As(err, &failure) || failure.Kind != "circuit_open" || len(response.Quotes) != 0 || calls != 3 {
+				if err != nil || response.Status != statusUnavailable || response.Error != "no_valid_quotes" ||
+					len(response.Quotes) != 0 || len(response.UnavailablePartners) != 1 ||
+					response.UnavailablePartners[0].Reason != "circuit_open" || calls != 3 {
 					t.Fatalf("expired cache masked open circuit: response=%+v err=%v calls=%d", response, err, calls)
 				}
 			})
@@ -258,7 +259,9 @@ func TestCacheRejectsIncoherentEntriesAndInvalidFreshQuotes(t *testing.T) {
 			q.PremiumCents = 0
 			return q, nil
 		}), store, 300*time.Second)
-		if _, err := service.Quote(context.Background(), "corretora-a", validRequest()); err == nil || store.sets != 0 {
+		response, err := service.Quote(context.Background(), "corretora-a", validRequest())
+		if err != nil || response.Status != statusUnavailable || len(response.Quotes) != 0 ||
+			len(response.UnavailablePartners) != 1 || response.UnavailablePartners[0].Reason != "invalid_response" || store.sets != 0 {
 			t.Fatal("invalid provider response was accepted or cached")
 		}
 	})
@@ -304,16 +307,14 @@ func TestQuoteCannotExpireDuringPartnerCallOrFinalComposition(t *testing.T) {
 					return quote, nil
 				}), store, 300*time.Second)
 				response, err := service.Quote(context.Background(), "corretora-a", validRequest())
-				var failure *partner.Error
-				if !errors.As(err, &failure) || failure.Kind != "expired" || len(response.Quotes) != 0 {
+				if err != nil || response.Status != statusPartial || !response.Degraded ||
+					len(response.Quotes) != 1 || response.Quotes[0].Partner != threePartners[1].Name ||
+					response.Quotes[0].ValidForSeconds < 1 || len(response.UnavailablePartners) != 1 ||
+					response.UnavailablePartners[0] != (UnavailablePartner{Partner: threePartners[0].Name, Reason: "expired"}) {
 					t.Fatalf("expired quote was presented: response=%+v err=%v", response, err)
 				}
-				wantCalls := 2
-				if duringCall {
-					wantCalls = 1
-				}
-				if calls != wantCalls {
-					t.Fatalf("expired proposal was queried again: calls=%d want %d", calls, wantCalls)
+				if calls != 2 {
+					t.Fatalf("expired proposal was queried again: calls=%d want 2", calls)
 				}
 			})
 		})

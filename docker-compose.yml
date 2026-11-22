@@ -27,7 +27,7 @@ x-parceira: &parceira
 
 services:
   # A API consulta as tres parceiras EM SERIE, com timeout e breaker por parceira.
-  # Cache por tenant/parceira/risco integrado; fallback parcial ainda nao implementado.
+  # Cache por tenant/parceira/risco e fallback parcial integrados; recusa 503 sem propostas validas.
   quotation-api:
     build:
       context: .

@@ -65,6 +65,10 @@ func (a *API) quote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if response.Status == statusUnavailable {
+		platform.WriteJSON(w, http.StatusServiceUnavailable, response)
+		return
+	}
 	w.Header().Set("X-Tenant-Id", tenant)
 	platform.WriteJSON(w, http.StatusOK, response)
 }

@@ -2,6 +2,7 @@ package quotation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -21,6 +22,7 @@ type Service struct {
 	cacheTTL time.Duration
 }
 
+// NewService retains the baseline contract; the API uses NewCachedService.
 func NewService(partners []platform.Partner, quoter Quoter) *Service {
 	return &Service{partners: partners, quoter: quoter}
 }
@@ -47,6 +49,7 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 	forPartner := partnerRequest{Broker: tenant, Request: request}
 
 	quotes := make([]Quote, 0, len(s.partners))
+	failures := make(map[string]string, len(s.partners))
 	cacheUnavailable := false
 	for _, p := range s.partners {
 		if err := ctx.Err(); err != nil {
@@ -61,24 +64,38 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 			quote, unavailable, err = s.quoteWithCache(ctx, tenant, p, forPartner)
 			cacheUnavailable = cacheUnavailable || unavailable
 		}
+		if ctx.Err() != nil {
+			return Response{}, ctx.Err()
+		}
 		if err != nil {
-			return Response{}, err
+			if s.cache == nil {
+				return Response{}, err
+			}
+			failures[p.Name] = unavailableReason(err)
+			continue
 		}
 		quotes = append(quotes, quote)
 	}
 
 	now := time.Now().UTC()
-	for i := range quotes {
-		if quotes[i].Origin == nil {
-			continue
+	valid := quotes[:0]
+	for _, quote := range quotes {
+		if quote.Origin != nil {
+			if quote.QuotedAt.After(now) {
+				failures[quote.Partner] = "invalid_response"
+				continue
+			}
+			remaining := int64(quote.ExpiresAt.Sub(now) / time.Second)
+			if remaining < 1 {
+				failures[quote.Partner] = "expired"
+				continue
+			}
+			quote.ValidForSeconds = remaining
+			quote.AgeSeconds = int64(now.Sub(quote.QuotedAt) / time.Second)
 		}
-		remaining := int64(quotes[i].ExpiresAt.Sub(now) / time.Second)
-		if remaining < 1 {
-			return Response{}, &partner.Error{Partner: quotes[i].Partner, Kind: "expired", Reason: "quote expired before presentation"}
-		}
-		quotes[i].ValidForSeconds = remaining
-		quotes[i].AgeSeconds = int64(now.Sub(quotes[i].QuotedAt) / time.Second)
+		valid = append(valid, quote)
 	}
+	quotes = valid
 	if err := ctx.Err(); err != nil {
 		return Response{}, err
 	}
@@ -87,10 +104,25 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 	})
 
 	response := Response{
-		TenantID:  tenant,
-		Quotes:    quotes,
-		ElapsedMs: time.Since(start).Milliseconds(),
-		Degraded:  cacheUnavailable,
+		TenantID:            tenant,
+		Quotes:              quotes,
+		ElapsedMs:           time.Since(start).Milliseconds(),
+		Status:              statusComplete,
+		Degraded:            cacheUnavailable,
+		UnavailablePartners: make([]UnavailablePartner, 0, len(failures)),
+	}
+	for _, p := range s.partners {
+		if reason, missing := failures[p.Name]; missing {
+			response.UnavailablePartners = append(response.UnavailablePartners, UnavailablePartner{Partner: p.Name, Reason: reason})
+		}
+	}
+	if len(failures) > 0 {
+		response.Status, response.Degraded = statusPartial, true
+	}
+	if s.cache != nil && len(quotes) == 0 {
+		response.Status, response.Degraded = statusUnavailable, true
+		response.Error = "no_valid_quotes"
+		response.Action = "Solicite uma nova cotação mais tarde ou contate o suporte da corretora."
 	}
 	if s.cache != nil {
 		response.CacheStatus = "available"
@@ -99,4 +131,15 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 		}
 	}
 	return response, nil
+}
+
+func unavailableReason(err error) string {
+	var failure *partner.Error
+	if errors.As(err, &failure) {
+		switch failure.Kind {
+		case "timeout", "circuit_open", "half_open_limit", "upstream_error", "invalid_response", "expired":
+			return failure.Kind
+		}
+	}
+	return "upstream_error"
 }
