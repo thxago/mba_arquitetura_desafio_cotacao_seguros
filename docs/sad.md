@@ -1,8 +1,8 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.5 | 22/11/2026**
+**Solution Architecture Document | versão 0.6 | 22/11/2026**
 
-**Estado:** seções 1 a 4 elaboradas; timeout, circuit breaker, cache isolado e fallback parcial de D-01 a D-03 implementados, com provas determinísticas e integração no boot. Novos sinais de negócio permanecem propostos; seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino está **parcialmente implementada**, sem medição do depois nem comprovação das metas de carga. Este documento parcial não declara o desafio concluído.
+**Estado:** seções 1 a 4 elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e conferência dos sinais no Prometheus/Jaeger. Seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino está **parcialmente implementada**, sem medição da carga padrão do depois nem comprovação das metas de carga. Este documento parcial não declara o desafio concluído.
 
 ## 1. Introdução
 
@@ -132,7 +132,7 @@ F-04 mostra por que a intervenção se concentra nessa fronteira: no [trace lent
 
 ### 2.3 Contêineres - C4 nível 2 do depois, proposto
 
-**O desenho abaixo representa o destino completo, ainda parcialmente proposto.** Timeout, breaker, cache e fallback parcial estão ligados no boot; novas métricas/eventos de negócio ainda não. A presença dos contêineres não comprova as integrações pendentes. A agregação continua sequencial, sem depender do bônus.
+**O desenho abaixo representa o recorte local implementado, ainda sem comparação da carga padrão do depois.** Timeout, breaker, cache, fallback parcial e métricas/eventos de negócio estão ligados no boot. A chegada dos sinais foi conferida em backends isolados, nas condições da seção 4.6; isso não comprova as metas de carga. A agregação continua sequencial, sem depender do bônus.
 
 ```mermaid
 flowchart LR
@@ -140,7 +140,7 @@ flowchart LR
     operator(["Operacao<br/>Pessoa interna"])
     load["loadgen<br/>Conteiner Go existente - mesma carga de teste"]
     subgraph prumo["Prumo Cota - destino com implementacao parcial"]
-        api["quotation-api<br/>Timeout, breaker, cache e fallback implementados<br/>PROPOSTA: sinais de negocio"]
+        api["quotation-api<br/>Timeout, breaker, cache e fallback implementados<br/>Sinais de negocio implementados"]
         redis[("redis<br/>Conteiner existente<br/>Cache isolado por tenant, parceira e risco")]
         collector["otel-collector<br/>Conteiner existente - mesmo pipeline"]
         jaeger["jaeger<br/>Conteiner existente - traces"]
@@ -155,7 +155,7 @@ flowchart LR
     api <-->|"Consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| slow
     api <-->|"Consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| flaky
     api <-->|"Consulta condicionada por cache e breaker, com timeout - HTTP/JSON"| degrading
-    api -->|"OTLP/gRPC :4317 - genericos existentes e sinais de negocio propostos"| collector
+    api -->|"OTLP/gRPC :4317 - sinais genericos e de negocio implementados"| collector
     collector -->|"Traces - OTLP/gRPC :4317"| jaeger
     prometheus -->|"Scrape de metricas da API e Collector - HTTP :8889 e :8888"| collector
     operator -->|"Inspecao de cache e curto-circuito - UI HTTP :16686"| jaeger
@@ -194,10 +194,10 @@ Nos requisitos abaixo, “existente” é comportamento a preservar; “novo” 
 | RF-06 | Para risco normalizado e tenant elegíveis, reutilizar proposta rastreável no Redis dentro da validade decidida; em miss, obter dados de parceira conforme a política, sem registrar resposta inválida como cotação válida | **Implementado**: `internal\quotation\cache.go`, `service.go` e `internal\cache\redis.go`; testes de hit/miss, validade absoluta, entradas incoerentes, isolamento e integração do boot. Chave e TTL conforme seção 4.3 |
 | RF-07 | Bloquear chamadas externas abrangidas por um circuito aberto; tornar verificáveis fechado, aberto e meio aberto e limitar espera por timeout conforme parâmetros previamente defendidos | **Implementado**: `internal\partner\client.go`; `internal\partner\resilience_test.go` prova estados, timeout e zero chamadas em aberto com relógio virtual; `cmd\quotation-api\main_test.go` prova ligação do breaker configurado ao boot |
 | RF-08 | Ao ocorrer falha, timeout ou curto-circuito, devolver o resultado de negócio definido na seção 4 com degradação identificável pelo consumidor; se apresentar cache anterior, informar origem e idade; se apresentar resposta parcial, identificar ausentes; se recusar, devolver erro de negócio distinguível e orientação | **Implementado** no serviço com cache e handler: parcial 200, ausentes/motivos, origem/idade e recusa 503 `no_valid_quotes` com orientação. Testes determinísticos e integração do boot verificam o contrato; o baseline 502 não descreve a API atual |
-| RF-09 | Expor sinais observáveis de estado/transição do breaker, hit/miss de cache e latência por parceira, e marcar no trace resposta de cache e requisição curto-circuitada | **Novo da arquitetura**: F-06 fornece apenas instrumentação genérica. Conferir emissão real, consulta PromQL e traces; nomes propostos fixados na seção 4.6, ainda sem emissão das novas métricas |
+| RF-09 | Expor sinais observáveis de estado/transição do breaker, hit/miss de cache e latência por parceira, e marcar no trace resposta de cache e requisição curto-circuitada | **Implementado**: Counters de transições/lookups, histograma HTTP reutilizado e eventos de cache/curto-circuito. Testes e exportações reais do Prometheus/Jaeger na seção 4.6; sem dados pessoais nem novos rótulos ilimitados |
 | RF-10 | Para cada cotação efetivamente apresentada, permitir reconstruir seguradora, prêmio, corretora e instante, ligando cache/fallback à consulta original, e prever registro durável imutável | **Produção proposta**, obrigação F-01; seção 5 deverá projetar o mecanismo, seção 7 a recuperação e seção 8 o custo. Aceite por desenho e dimensionamento; persistência regulatória não é alegada como entregue pelo PoC |
 
-RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção; RF-06 a RF-08 estão implementados nesta etapa, enquanto os novos sinais de RF-09 permanecem pendentes. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
+RF-06 a RF-09 foram introduzidos pela arquitetura de intervenção e estão implementados nesta etapa. RF-08 não autoriza chamar toda resposta 200 de sucesso de negócio: RNF-02 exige conteúdo útil e válido. RF-10 não autoriza introduzir CPF, placa ou identificadores de cotação na telemetria para simular auditoria.
 
 ### 3.3 Baseline próprio e condições de comparação
 
@@ -249,7 +249,7 @@ A janela absoluta foi `2026-11-17T21:20:31Z` a `2026-11-17T21:21:50Z`, com passo
 
 O SDK exporta métricas a cada 10 s e o Prometheus raspa o Collector a cada 5 s (F-06); a carga é curta e há defasagem entre a requisição e sua observação. Não preencher lacunas como zero. Os arquivos exportados de F-04 permanecem a fonte do antes mesmo após expirar a retenção ou derrubar o Compose.
 
-Ainda não há métricas de breaker/cache implementadas. Os nomes propostos estão na seção 4.6; a implementação deverá emiti-los e a seção 6 associá-los a limiares e ações. Timeout, breaker e validade de cache possuem provas determinísticas próprias. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
+As métricas de breaker/cache estão implementadas e sua chegada aos backends está comprovada na seção 4.6; a seção 6 ainda deverá associá-las a limiares e ações. Timeout, breaker e validade de cache possuem provas determinísticas próprias. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
 
 ### 3.6 Rastreabilidade para as próximas seções
 
@@ -261,7 +261,7 @@ Ainda não há métricas de breaker/cache implementadas. Os nomes propostos est�
 
 ## 4. Detalhamento da arquitetura
 
-**D-01 a D-03 implementadas; novos sinais de negócio ainda propostos.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. As provas estão na seção 4.8; não há medições de carga do depois. Os parâmetros continuam escolhas defendidas por código do cenário e baseline. Antes de alterá-los durante o PoC, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
+**D-01 a D-03 e sinais de negócio implementados.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. As provas estão nas seções 4.6 e 4.8; não há medições da carga padrão do depois. Os parâmetros continuam escolhas defendidas por código do cenário e baseline. Antes de alterá-los durante o PoC, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
 
 ### 4.1 Sequência de atendimento e orçamento de espera
 
@@ -411,7 +411,7 @@ Mantidos os erros 400/403 e respectivas mensagens de validação, `GET /healthz`
 
 ### 4.5 Componentes - C4 nível 3 da fatia decidida
 
-Os componentes internos misturam implementação e destino proposto: timeout, breaker, cache e composição parcial já existem; sinais de negócio ainda não. Somente a fatia protegida é decomposta; Redis, Collector e parceiras ficam fora da fronteira do contêiner API. O boot e a leitura de parâmetros permanecem em `cmd\quotation-api\main.go` e `internal\platform\config.go`.
+Os componentes internos deste recorte estão implementados: timeout, breaker, cache, composição parcial e sinais de negócio. Somente a fatia protegida é decomposta; Redis, Collector e parceiras ficam fora da fronteira do contêiner API. O boot e a leitura de parâmetros permanecem em `cmd\quotation-api\main.go` e `internal\platform\config.go`.
 
 ```mermaid
 flowchart LR
@@ -422,7 +422,7 @@ flowchart LR
         cache["Cache por tenant, risco e parceira<br/>quotation/cache.go e cache/redis.go implementados"]
         protected["Cliente protegido e breaker por parceira<br/>internal/partner/client.go - gobreaker v2 implementado"]
         http["Cliente HTTP com timeout por parceira<br/>Extensao de internal/partner/client.go"]
-        signals["Sinais de negocio propostos<br/>Reutilizam SDK de internal/platform/telemetry.go"]
+        signals["Sinais de negocio implementados<br/>Reutilizam SDK de internal/platform/telemetry.go"]
     end
     redis[("redis<br/>Conteiner externo a API - RESP")]
     partners["partner-slow, partner-flaky, partner-degrading<br/>Sistemas externos - mocks inalterados"]
@@ -444,18 +444,20 @@ A chave e o envelope são responsabilidade de `internal\quotation\cache.go`; o a
 
 ### 4.6 Instrumentação decidida como método de prova
 
-Reutilizar os exportadores atuais. Os nomes abaixo de breaker/cache são **propostos, ainda não emitidos**; a latência HTTP já existe. Não listar nenhum deles como implementado no README antes de verificar a emissão.
+Os exportadores e o pipeline existentes são reutilizados, sem alteração de `internal\platform\telemetry.go`. Os três sinais abaixo são **emitidos e verificados**: dois novos Counters e o histograma HTTP existente. A integração do boot comprova a ligação ao caminho real; a conferência auxiliar comprova a chegada ao Prometheus/Jaeger, sem alegar desempenho na carga padrão.
 
 | Sinal | Nome e atributos decididos | Método de prova |
 | --- | --- | --- |
 | Transições do breaker | Novo Counter OTel `prumo_breaker_transitions`, exportado como `prumo_breaker_transitions_total`; atributos `partner`, `from`, `to`; estados `closed`, `open`, `half_open` | Callback registra cada mudança. Plotar séries de transição e cruzar com traces; transições rápidas permanecem contadas mesmo se o estado meio aberto durar menos que os 10 s entre exports |
 | Consultas ao cache | Novo Counter OTel `prumo_cache_lookups`, exportado como `prumo_cache_lookups_total`; atributos `partner`, `result=hit\|miss\|error` | Uma observação por lookup; entrada vencida/inválida conta como miss. Erro é categoria separada, nunca falso hit; write failure usa `cache_status`/evento de trace, não outro lookup |
 | Latência por parceira | Reutilizar `http_client_request_duration_seconds_bucket` com `server_address`; sem histograma duplicado | Somente chamadas HTTP efetivas; cache e curto-circuito não viram latências artificiais de zero segundo |
-| Marcações no span da cotação | Novos eventos `quotation.cache_hit` e `partner.short_circuit`, com `partner`; no curto-circuito, `reason=circuit_open\|half_open_limit` | Trace com todos os hits não contém spans HTTP de saída; requisição admitida após abertura não cria span HTTP para a parceira bloqueada |
+| Marcações no span da cotação | Eventos `quotation.cache_hit` e `partner.short_circuit`, com `partner`; no curto-circuito, `reason=circuit_open\|half_open_limit` | Hit só é marcado se a proposta sobreviver à composição final. Trace com todos os hits não contém spans HTTP de saída; requisição rejeitada após abertura não cria span HTTP para a parceira bloqueada |
 
 Não habilitar sufixo de unidade nos novos Counters para preservar os nomes de exportação declarados. Não usar tenant como rótulo de métrica: `partner`, estados e resultados têm cardinalidade limitada. CPF, placa, `quote_id`, risco, hash e chave de cache ficam fora de spans/métricas. `source` e idade podem compor o contrato de negócio sem serem rótulos.
 
-Consultas propostas, a executar somente após implementar os Counters:
+`quotation.cache_error`, com `partner` e `operation=get|set`, registra falha Redis sem mensagem interna. Uma falha de SET não incrementa lookups nem descarta a proposta fresca. Os Counters usam os meters `prumo/partner` e `prumo/quotation`; sem unidade adicional, seus nomes reais no Prometheus coincidem com os decididos acima.
+
+Consultas para os Counters emitidos (o README acrescenta o filtro `service_name="quotation-api"`):
 
 ```promql
 sum by (partner, from, to) (
@@ -485,7 +487,11 @@ histogram_quantile(
 )
 ```
 
-O Counter de transições, não um gauge amostrado esporadicamente, será a prova mínima dos três estados. Sua exportação pode agrupar mudanças no mesmo scrape: confirmar a ordem por eventos de transição no trace da requisição que a provocou ou nos resultados determinísticos, sem alongar artificialmente o meio aberto nem inventar patamares no gráfico. Os três eventos esperados são `closed→open`, `open→half_open` e `half_open→closed`; uma falha na sondagem deve produzir `half_open→open`.
+O Counter de transições, não um gauge amostrado esporadicamente, é a prova mínima dos três estados. Sua exportação pode agrupar mudanças no mesmo scrape: os testes com relógio virtual confirmam a ordem, sem alongar artificialmente o meio aberto nem inventar patamares no gráfico. Foram observadas `closed→open`, `open→half_open` e `half_open→closed`; os testes de resiliência também cobrem `half_open→open` após falha da sondagem. Não há evento de transição adicionado ao trace pelo callback sem contexto.
+
+**Conferência auxiliar real — 22/11/2026, 16:46:45Z a 16:47:06Z.** [Condições e verificações](evidencias/202611221350/verification.json), [respostas PromQL da coleta 1](evidencias/202611221350/metrics-phase-1.json), [coleta 2](evidencias/202611221350/metrics-phase-2.json) e [oito traces do Jaeger](evidencias/202611221350/traces.json). Os totais passaram de 1/4/0 para 2/5/1 em hit/miss/erro de leitura; zero aqui significa ausência da categoria de erro na primeira coleta, não amostra inventada. Transições passaram de 1 para 3, incluindo abertura, sondagem e fechamento. O histograma passou de 3 para 5 chamadas, exatamente as chamadas ao upstream. Dois traces de cache e um curto-circuito têm as marcações e zero spans HTTP cliente; chamadas efetivas têm um span cliente. Marcadores privados do pedido/proposta não aparecem nos spans exportados.
+
+Como o daemon Docker não respondeu, foram usados processos Windows isolados, em loopback, de Jaeger 1.65.0, Collector 0.116.1 e Prometheus 3.1.0, com binários oficiais verificados por SHA-256. A composição Go usa os mesmos cliente protegido, serviço com cache, handler e SDK/exportadores; o teste de integração verifica separadamente o `newAPI` real. O estímulo auxiliar usa upstream HTTP controlado e miniredis, sem alterar os mocks oficiais. Collector recebe OTLP em 14317 e expõe métricas em 18889; Jaeger consulta em 26686 e Prometheus em 19090. O scrape auxiliar é de 1 s, mantendo o export do SDK em 10 s. Os processos foram encerrados sem reiniciar serviços compartilhados. **Não é execução do Compose padrão, comparação antes/depois nem comprovação de RNF-01 a RNF-03.**
 
 ### 4.7 Limites conhecidos e riscos aceitos do recorte
 
@@ -502,7 +508,7 @@ A mistura de preços/instantes não é observada necessariamente no mock: F-08 c
 
 ### 4.8 Escopo implementável e provas pendentes
 
-**Até esta versão:** base, evidências do antes e D-01 a D-03 estão implementados. O boot liga `partner.NewResilientClient`, `cache.NewRedis` e `quotation.NewCachedService`; configuração inválida falha na inicialização. A conexão Redis é preguiçosa e seu fechamento ocorre após o encerramento das requisições HTTP. O callback do breaker apenas registra transições em log, sem rede nem consulta recursiva de estado. A API agrega em série, continua após falha de parceira, descarta propostas que venceram e entrega resultado completo/parcial 200 ou recusa 503. Apenas novos sinais de negócio e provas de carga continuam pendentes nesse recorte.
+**Até esta versão:** base, evidências do antes, D-01 a D-03 e instrumentação de negócio estão implementados. O boot liga `partner.NewResilientClient`, `cache.NewRedis` e `quotation.NewCachedService`; configuração inválida falha na inicialização. A conexão Redis é preguiçosa e seu fechamento ocorre após o encerramento das requisições HTTP. O callback do breaker registra transições em log e no Counter em memória do SDK, sem I/O de rede nem consulta recursiva de estado; o exportador periódico faz o envio. A API agrega em série, continua após falha de parceira, descarta propostas que venceram e entrega resultado completo/parcial 200 ou recusa 503. As provas da carga padrão do depois continuam pendentes.
 
 `internal\partner\resilience_test.go` cobre abertura e curto-circuito, uma sondagem em meio aberto, fechamento/reabertura, reset por sucesso e janela fixa, timeout de cabeçalhos/corpo, exclusão de cancelamento/prazo do consumidor, liberação da sondagem excluída, isolamento entre parceiras e conclusões tardias. Respostas inválidas e erros locais são diferenciados. `internal\partner\client_test.go` verifica também ausência de redirecionamento; `internal\platform\config_test.go` verifica configuração válida/inválida. `cmd\quotation-api\main_test.go` exercita a composição efetivamente chamada por `main` através de `POST /quotes`, incluindo o limiar personalizado e compartilhamento entre tenants.
 
@@ -512,6 +518,8 @@ O serviço/handler já implementam composição parcial, ausentes e recusa de D-
 
 A suíte original permanece. `NewClient`/`NewService` conservam o caminho básico dos testes legados, incluindo o tudo-ou-nada do baseline; o boot usa **exclusivamente** o cliente protegido e `NewCachedService`, que aplica cache e fallback parcial. Não há flag de produção que selecione o modo legado.
 
+`internal\partner\telemetry_test.go` verifica contagem de abertura/sondagem/fechamento e os dois motivos de curto-circuito com relógio virtual. `internal\quotation\telemetry_test.go` diferencia hit/miss/entrada inválida/vencida/erro de GET e SET sem lookup duplicado. `cmd\quotation-api\telemetry_test.go` captura o SDK no boot real, confere os três sinais, prova ausência de spans/observações HTTP nos caminhos evitados e busca valores privados nos atributos/eventos. A conferência em backends reais está na seção 4.6.
+
 | Prova a produzir nas tarefas de código/evidência | Condição de aceite específica |
 | --- | --- |
 | Breaker com relógio virtual — implementada | Três falhas em janela abrem; tentativa seguinte não executa transporte; após 5 s uma sondagem é admitida; sucesso fecha e falha reabre; cancelamento do consumidor não altera saúde |
@@ -519,6 +527,7 @@ A suíte original permanece. `NewClient`/`NewService` conservam o caminho básic
 | Cache e isolamento — implementada | Duas corretoras, mesmo risco, não compartilham entrada; alterar qualquer campo relevante altera a chave; hit não chama HTTP nem estende expiração; vencimento não serve stale |
 | Redis indisponível — implementada | Erro/timeout de GET permite consulta externa protegida; SET falho não descarta proposta fresca; `cache_status=unavailable` e `degraded=true` aparecem no sucesso |
 | Fallback parcial — implementada | Parceira indisponível não apaga propostas válidas das demais; ausentes/motivos aparecem; zero válidas gera 503, não 200 vazio; cancelamento do consumidor interrompe o trabalho |
+| Sinais de negócio — implementada e conferida | Dois Counters e histograma HTTP com valores variando no Prometheus; eventos de cache/curto-circuito no Jaeger, sem spans HTTP evitados nem marcadores privados |
 | Execução padrão do depois | `make down` e `make reproduce`, mesmos defaults e carga; capturar antes de derrubar, conforme seção 3; só ela serve de comparação quantitativa |
 | Estímulo auxiliar de transições | Usar riscos inéditos para não esconder falhas atrás de hits; percorrer a sequência padrão até observar as transições, com comando/janela declarados. Não alterar mocks nem apresentar carga auxiliar como comparação padrão |
 

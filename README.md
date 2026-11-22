@@ -2,7 +2,7 @@
 
 ## Contrato atual do PoC
 
-Timeout, circuit breaker, cache isolado e fallback parcial estão implementados na API. O restante deste README preserva o enunciado original e sua descrição do **baseline**, não o estado atual do código. Instrumentação de negócio e evidências do depois ainda estão pendentes.
+Timeout, circuit breaker, cache isolado, fallback parcial e instrumentação de negócio estão implementados na API. A seção “Enunciado original” preserva a descrição do **baseline**, não o estado atual do código. A comparação de carga do depois ainda está pendente.
 
 | HTTP | `status` | Resultado |
 | --- | --- | --- |
@@ -15,6 +15,57 @@ O 503 substitui o antigo 502 de indisponibilidade das parceiras. A ação de rec
 Cada proposta mantém seguradora, identificador e prêmio originais e informa `source` (`partner`/`cache`), `quoted_at`, `expires_at` e `age_seconds`. **`valid_for_seconds` agora significa validade restante**, inclusive na resposta fresca; hits não renovam o prazo e propostas vencidas nunca são apresentadas. A ordenação crescente por prêmio e o cabeçalho `X-Tenant-Id` de sucesso permanecem.
 
 `degraded=true` indica resposta parcial/indisponível ou falha Redis; uma resposta `complete` pode estar degradada se `cache_status=unavailable`. Cache válido, por si só, não significa degradação. Permanecem as validações 400/403, as coberturas `comprehensive`/`third_party` e `GET /healthz`. Decisões e limites: [SAD, seção 4](docs/sad.md#4-detalhamento-da-arquitetura).
+
+## Telemetria de negócio
+
+O SDK, os exportadores e o pipeline existentes são reutilizados: API → Collector → Jaeger/Prometheus. No Compose, consultar Prometheus em `http://127.0.0.1:9090` e Jaeger em `http://127.0.0.1:16686`, serviço `quotation-api`. Métricas são exportadas a cada 10 s e raspadas a cada 5 s; aguardar a coleta antes de concluir que faltam sinais.
+
+| Sinal | Nome real no Prometheus | Atributos de negócio |
+| --- | --- | --- |
+| Transições do breaker | `prumo_breaker_transitions_total` | `partner`, `from`, `to`; estados `closed`, `open`, `half_open` |
+| Lookups de cache | `prumo_cache_lookups_total` | `partner`, `result=hit\|miss\|error` |
+| Latência HTTP por parceira | `http_client_request_duration_seconds_bucket` / `_sum` / `_count` | `server_address`; hosts distintos das três parceiras no Compose |
+
+Os dois Counters OTel chamam-se `prumo_breaker_transitions` e `prumo_cache_lookups`, sem unidade adicional. A latência reutiliza o histograma HTTP existente, sem medição duplicada: cache e curto-circuito **não** geram observações artificiais de zero segundo. Entrada inválida/vencida conta como miss; erro de GET conta como error, não miss. Falha de SET não adiciona lookup.
+
+Transições por parceira e direção:
+
+```promql
+sum by (partner, from, to) (
+  increase(prumo_breaker_transitions_total{service_name="quotation-api"}[1m])
+)
+```
+
+Hit rate de leituras sem erro e taxa de erros Redis, separadamente:
+
+```promql
+sum by (partner) (rate(prumo_cache_lookups_total{service_name="quotation-api",result="hit"}[1m]))
+/
+sum by (partner) (rate(prumo_cache_lookups_total{service_name="quotation-api",result=~"hit|miss"}[1m]))
+```
+
+```promql
+sum by (partner) (rate(prumo_cache_lookups_total{service_name="quotation-api",result="error"}[1m]))
+```
+
+Denominador zero, série ausente ou amostras insuficientes não significam hit rate de 0% ou 100%. Erros ficam fora desse denominador, mas não podem ser omitidos ao avaliar disponibilidade ou economia.
+
+```promql
+histogram_quantile(0.95,
+  sum by (server_address, le) (
+    rate(http_client_request_duration_seconds_bucket{
+      service_name="quotation-api",
+      server_address=~"partner-slow|partner-flaky|partner-degrading"
+    }[1m])
+  )
+)
+```
+
+No span servidor `POST /quotes`, procurar `quotation.cache_hit` (`partner`) e `partner.short_circuit` (`partner`, `reason=circuit_open|half_open_limit`). O primeiro marca somente propostas de cache que sobreviveram à composição final; o segundo marca a rejeição antes do transporte. Um trace servido inteiramente por cache não tem spans HTTP de saída; numa resposta mista, somente as chamadas efetivas aparecem. `quotation.cache_error` (`partner`, `operation=get|set`) registra falha Redis sem copiar a mensagem interna. Não são incluídos tenant, CPF, placa, `quote_id`, risco, hash ou chave de cache nos novos atributos.
+
+**Conferência real dos sinais:** [resumo e condições](docs/evidencias/202611221350/verification.json), [coleta 1](docs/evidencias/202611221350/metrics-phase-1.json), [coleta 2](docs/evidencias/202611221350/metrics-phase-2.json) e [oito traces exportados do Jaeger](docs/evidencias/202611221350/traces.json). Entre as coletas, hits passaram de 1 para 2, misses de 4 para 5, surgiu 1 erro de leitura, transições passaram de 1 para 3 e chamadas HTTP de 3 para 5. Chegaram `closed→open→half_open→closed`; os traces de cache/curto-circuito têm os eventos e zero spans HTTP de saída.
+
+Essa conferência usou os mesmos SDK/exportadores e versões dos backends do Compose, mas processos Windows isolados em loopback, Collector em 14317/18889, Jaeger em 26686 e Prometheus em 19090, scrape de 1 s, upstream controlado e miniredis. O Docker não respondeu; nenhum serviço compartilhado foi reiniciado. Os processos auxiliares foram encerrados. **Não é a carga padrão nem evidência de desempenho do depois**; mocks, perfis, gerador e baseline foram preservados.
 
 ## Enunciado original
 

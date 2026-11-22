@@ -12,6 +12,9 @@ import (
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/cache"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type QuoteCache interface {
@@ -67,12 +70,22 @@ func (s *Service) quoteWithCache(ctx context.Context, tenant string, p platform.
 	}
 	payload, err := s.cache.Get(ctx, key)
 	unavailable := err != nil && !errors.Is(err, cache.ErrMiss)
+	var entry cacheEntry
+	result := "miss"
+	if unavailable {
+		result = "error"
+		recordCacheError(ctx, p.Name, "get")
+	} else if err == nil && json.Unmarshal(payload, &entry) == nil &&
+		entry.valid(tenant, p.Name, s.cacheTTL, time.Now().UTC()) {
+		result = "hit"
+	}
+	s.cacheLookups.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("partner", p.Name), attribute.String("result", result),
+	))
 	if ctx.Err() != nil {
 		return Quote{}, unavailable, ctx.Err()
 	}
-	var entry cacheEntry
-	if err == nil && json.Unmarshal(payload, &entry) == nil &&
-		entry.valid(tenant, p.Name, s.cacheTTL, time.Now().UTC()) {
+	if result == "hit" {
 		return entry.presentation("cache"), unavailable, nil
 	}
 
@@ -103,9 +116,16 @@ func (s *Service) quoteWithCache(ctx context.Context, tenant string, p platform.
 	}
 	if err := s.cache.Set(ctx, key, payload, entry.ExpiresAt); err != nil {
 		unavailable = true
+		recordCacheError(ctx, p.Name, "set")
 	}
 	if ctx.Err() != nil {
 		return Quote{}, unavailable, ctx.Err()
 	}
 	return entry.presentation("partner"), unavailable, nil
+}
+
+func recordCacheError(ctx context.Context, name, operation string) {
+	trace.SpanFromContext(ctx).AddEvent("quotation.cache_error", trace.WithAttributes(
+		attribute.String("partner", name), attribute.String("operation", operation),
+	))
 }

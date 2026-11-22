@@ -1,0 +1,322 @@
+[
+  {
+    "query": "sum(prumo_cache_lookups_total{service_name=\"quotation-api\",result=\"hit\"})",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {},
+            "value": [
+              1795366026.751,
+              "2"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "sum(prumo_cache_lookups_total{service_name=\"quotation-api\",result=\"miss\"})",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {},
+            "value": [
+              1795366026.752,
+              "5"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "sum(prumo_cache_lookups_total{service_name=\"quotation-api\",result=\"error\"})",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {},
+            "value": [
+              1795366026.752,
+              "1"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "sum(prumo_breaker_transitions_total{service_name=\"quotation-api\"})",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {},
+            "value": [
+              1795366026.753,
+              "3"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "sum(http_client_request_duration_seconds_count{service_name=\"quotation-api\"})",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {},
+            "value": [
+              1795366026.753,
+              "5"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "prumo_cache_lookups_total{service_name=\"quotation-api\"}",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {
+              "__name__": "prumo_cache_lookups_total",
+              "exported_job": "quotation-api",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "partner": "partner-flaky",
+              "result": "hit",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0"
+            },
+            "value": [
+              1795366026.754,
+              "2"
+            ]
+          },
+          {
+            "metric": {
+              "__name__": "prumo_cache_lookups_total",
+              "exported_job": "quotation-api",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "partner": "partner-flaky",
+              "result": "miss",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0"
+            },
+            "value": [
+              1795366026.754,
+              "5"
+            ]
+          },
+          {
+            "metric": {
+              "__name__": "prumo_cache_lookups_total",
+              "exported_job": "quotation-api",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "partner": "partner-flaky",
+              "result": "error",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0"
+            },
+            "value": [
+              1795366026.754,
+              "1"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "prumo_breaker_transitions_total{service_name=\"quotation-api\"}",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {
+              "__name__": "prumo_breaker_transitions_total",
+              "exported_job": "quotation-api",
+              "from": "closed",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "partner": "partner-flaky",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0",
+              "to": "open"
+            },
+            "value": [
+              1795366026.755,
+              "1"
+            ]
+          },
+          {
+            "metric": {
+              "__name__": "prumo_breaker_transitions_total",
+              "exported_job": "quotation-api",
+              "from": "half_open",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "partner": "partner-flaky",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0",
+              "to": "closed"
+            },
+            "value": [
+              1795366026.755,
+              "1"
+            ]
+          },
+          {
+            "metric": {
+              "__name__": "prumo_breaker_transitions_total",
+              "exported_job": "quotation-api",
+              "from": "open",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "partner": "partner-flaky",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0",
+              "to": "half_open"
+            },
+            "value": [
+              1795366026.755,
+              "1"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "http_client_request_duration_seconds_count{service_name=\"quotation-api\"}",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {
+              "__name__": "http_client_request_duration_seconds_count",
+              "exported_job": "quotation-api",
+              "http_request_method": "POST",
+              "http_response_status_code": "200",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "network_protocol_name": "http",
+              "network_protocol_version": "1.1",
+              "server_address": "127.0.0.1",
+              "server_port": "61829",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0",
+              "url_scheme": "http"
+            },
+            "value": [
+              1795366026.755,
+              "3"
+            ]
+          },
+          {
+            "metric": {
+              "__name__": "http_client_request_duration_seconds_count",
+              "exported_job": "quotation-api",
+              "http_request_method": "POST",
+              "http_response_status_code": "503",
+              "instance": "127.0.0.1:18889",
+              "job": "202611221350-isolated-verification",
+              "network_protocol_name": "http",
+              "network_protocol_version": "1.1",
+              "server_address": "127.0.0.1",
+              "server_port": "61829",
+              "service_name": "quotation-api",
+              "telemetry_sdk_language": "go",
+              "telemetry_sdk_name": "opentelemetry",
+              "telemetry_sdk_version": "1.44.0",
+              "url_scheme": "http"
+            },
+            "value": [
+              1795366026.755,
+              "2"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "sum by (partner) (rate(prumo_cache_lookups_total{service_name=\"quotation-api\",result=\"hit\"}[1m])) / sum by (partner) (rate(prumo_cache_lookups_total{service_name=\"quotation-api\",result=~\"hit|miss\"}[1m]))",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {
+              "partner": "partner-flaky"
+            },
+            "value": [
+              1795366026.757,
+              "0.5"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "query": "histogram_quantile(0.95,sum by (server_address,le) (rate(http_client_request_duration_seconds_bucket{service_name=\"quotation-api\"}[1m])))",
+    "response": {
+      "status": "success",
+      "data": {
+        "resultType": "vector",
+        "result": [
+          {
+            "metric": {
+              "server_address": "127.0.0.1"
+            },
+            "value": [
+              1795366026.759,
+              "0.004750000000000001"
+            ]
+          }
+        ]
+      }
+    }
+  }
+]

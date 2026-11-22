@@ -9,6 +9,10 @@ import (
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Quoter interface {
@@ -16,10 +20,11 @@ type Quoter interface {
 }
 
 type Service struct {
-	partners []platform.Partner
-	quoter   Quoter
-	cache    QuoteCache
-	cacheTTL time.Duration
+	partners     []platform.Partner
+	quoter       Quoter
+	cache        QuoteCache
+	cacheTTL     time.Duration
+	cacheLookups metric.Int64Counter
 }
 
 // NewService retains the baseline contract; the API uses NewCachedService.
@@ -34,8 +39,14 @@ func NewCachedService(partners []platform.Partner, quoter Quoter, cache QuoteCac
 	if cache == nil {
 		return nil, fmt.Errorf("quote cache is required")
 	}
+	lookups, err := otel.Meter("prumo/quotation").Int64Counter("prumo_cache_lookups",
+		metric.WithDescription("Quote cache lookups by partner and result"))
+	if err != nil {
+		return nil, fmt.Errorf("cache lookups metric: %w", err)
+	}
 	service := NewService(partners, quoter)
 	service.cache, service.cacheTTL = cache, cfg.TTL
+	service.cacheLookups = lookups
 	return service, nil
 }
 
@@ -98,6 +109,12 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 	quotes = valid
 	if err := ctx.Err(); err != nil {
 		return Response{}, err
+	}
+	for _, quote := range quotes {
+		if quote.Origin != nil && quote.Source == "cache" {
+			trace.SpanFromContext(ctx).AddEvent("quotation.cache_hit",
+				trace.WithAttributes(attribute.String("partner", quote.Partner)))
+		}
 	}
 	sort.Slice(quotes, func(i, j int) bool {
 		return quotes[i].PremiumCents < quotes[j].PremiumCents

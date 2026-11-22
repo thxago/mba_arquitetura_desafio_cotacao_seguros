@@ -1,0 +1,23 @@
+{
+  "assertions": [
+    "metric values changed between snapshots",
+    "all three breaker transitions arrived",
+    "cache and short-circuit events arrived",
+    "cache/blocked traces have zero HTTP client spans",
+    "actual upstream calls match HTTP histogram count",
+    "private markers absent from exported spans"
+  ],
+  "composition": "Protected client + cached service + API routes + existing StartTelemetry/InstrumentHandler/InstrumentTransport.",
+  "dependencies": "Controlled httptest upstream and isolated miniredis; official mock profiles unchanged.",
+  "finished_at": "2026-11-22T16:47:06.7722509Z",
+  "http_calls": 5,
+  "scope": "Isolated signal verification; not the official Compose load or after-performance evidence.",
+  "scrape_interval": "1s",
+  "sdk_metric_interval": "10s",
+  "started_at": "2026-11-22T16:46:45.4684377Z",
+  "versions": {
+    "collector": "0.116.1",
+    "jaeger": "1.65.0",
+    "prometheus": "3.1.0"
+  }
+}

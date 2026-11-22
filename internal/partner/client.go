@@ -15,6 +15,10 @@ import (
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 	"github.com/sony/gobreaker/v2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Quote struct {
@@ -61,6 +65,11 @@ func NewResilientClient(partners []platform.Partner, cfg platform.Resilience) (*
 	if err := cfg.Validate(partners); err != nil {
 		return nil, err
 	}
+	transitions, err := otel.Meter("prumo/partner").Int64Counter("prumo_breaker_transitions",
+		metric.WithDescription("Partner circuit breaker state transitions"))
+	if err != nil {
+		return nil, fmt.Errorf("breaker transitions metric: %w", err)
+	}
 	client := &Client{partners: make(map[string]*protectedPartner, len(partners))}
 	for _, p := range partners {
 		client.partners[p.Name] = &protectedPartner{
@@ -79,6 +88,11 @@ func NewResilientClient(partners []platform.Partner, cfg platform.Resilience) (*
 					return errors.As(err, &canceled)
 				},
 				OnStateChange: func(name string, from, to gobreaker.State) {
+					transitions.Add(context.Background(), 1, metric.WithAttributes(
+						attribute.String("partner", name),
+						attribute.String("from", breakerStateName(from)),
+						attribute.String("to", breakerStateName(to)),
+					))
 					log.Printf("partner breaker: partner=%s from=%s to=%s", name, from, to)
 				},
 			}),
@@ -116,12 +130,27 @@ func (c *Client) Quote(ctx context.Context, p platform.Partner, request any) (Qu
 	})
 	switch {
 	case errors.Is(err, gobreaker.ErrOpenState):
+		recordShortCircuit(ctx, p.Name, "circuit_open")
 		return Quote{}, &Error{Partner: p.Name, Kind: "circuit_open", Reason: "circuit is open", Cause: err}
 	case errors.Is(err, gobreaker.ErrTooManyRequests):
+		recordShortCircuit(ctx, p.Name, "half_open_limit")
 		return Quote{}, &Error{Partner: p.Name, Kind: "half_open_limit", Reason: "half-open probe is in progress", Cause: err}
 	default:
 		return quote, err
 	}
+}
+
+func breakerStateName(state gobreaker.State) string {
+	if state == gobreaker.StateHalfOpen {
+		return "half_open"
+	}
+	return state.String()
+}
+
+func recordShortCircuit(ctx context.Context, name, reason string) {
+	trace.SpanFromContext(ctx).AddEvent("partner.short_circuit", trace.WithAttributes(
+		attribute.String("partner", name), attribute.String("reason", reason),
+	))
 }
 
 func executeQuote(client *http.Client, req *http.Request, name string) (Quote, error) {
