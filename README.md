@@ -14,7 +14,7 @@ O coração da solução é proteger a fronteira com as seguradoras: timeout lim
 | Estimativa, não economia realizada | Pessoal, infraestrutura, auditoria, ensaios de DR e payback condicional com preços hipotéticos; [SAD, seção 8](docs/sad.md#8-tecnologias-custos-e-pessoal-tco) |
 | Não implementado | Retry, bulkhead, rate limiting, filas, Kubernetes e paralelização opcional; a agregação continua serial |
 
-O módulo e a base foram preservados; mocks, loadgen e perfis das parceiras não foram alterados para produzir o resultado. O enunciado descreve o **baseline**. A revisão final e a publicação da entrega são uma etapa posterior, não declarada concluída aqui.
+O módulo e a base foram preservados; mocks, loadgen e perfis das parceiras não foram alterados para produzir o resultado. O enunciado descreve o **baseline**. A revisão de coerência foi concluída.
 
 ## Subir e reproduzir
 
