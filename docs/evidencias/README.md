@@ -143,3 +143,187 @@ $trace = $all.data | Where-Object traceID -EQ '47f8c1a200576948664cbce2c2b8ecc5'
 Para o trace com erro, substituir o ID e o nome do arquivo pelos indicados na tabela. A consulta deve ser executada com o ambiente ativo; após o reset, usar os arquivos já exportados.
 
 Nenhum teste ou mecanismo novo foi introduzido nesta etapa. Não há evidência de breaker, cache ou fallback, pois eles ainda não existem. O hit rate de produção e os alvos de RNF não são inferidos desta carga sintética.
+
+## Depois da intervenção
+
+O conteúdo acima permanece o registro histórico do **antes**. A execução do **depois**, em **22/11/2026**, usa o commit `c6c4c27c85608b252017cc4041ec93756e1d1133`, sem alterações de código nesta coleta. Docker Engine 28.4.0, Compose 2.39.4 e Go 1.25.14/windows-amd64, no mesmo host do baseline. O Docker voltou a responder; esta coleta usa **o Compose real**, não os processos isolados da conferência anterior de instrumentação.
+
+Comandos executados, sem `ARGS` nem overrides de timeout, breaker, TTL, sementes ou carga:
+
+```powershell
+make down
+make reproduce
+```
+
+O reset afetou somente o projeto Compose deste desafio. Foram preservados os defaults: **10 sequenciais + 200 com 50 em voo, cinco riscos, `corretora-a`, timeout 30 s, limite 2 min**. As configurações efetivas das três parceiras foram comparadas ao [snapshot do antes](antes-compose.json); fontes dos mocks/loadgen continuam iguais à base oficial. [Contexto e hashes anteriores](depois-contexto.json) e [Compose efetivo](depois-compose.json).
+
+### Comparação padrão antes/depois
+
+| Fase / indicador | Antes, 17/11 | Depois, 22/11 | Leitura |
+| --- | --- | --- | --- |
+| Sequencial: sucesso | 5/10 = 50% | 10/10 = 100% | Aquecimento com cinco riscos repetidos |
+| Sequencial: p95 | 2,03 s | 2,04 s | O caminho frio serial não ficou mais rápido |
+| Sequencial: vazão | 0,5 req/s | 1,0 req/s | 18,77 s contra 10,02 s na fase |
+| Carga: sucesso útil | 120/200 = 60% | 200/200 = 100% | +40 pontos percentuais, sob a hipótese de uma proposta válida ser útil |
+| Carga: p95 empírico | 8,01 s | 1,70 s | Redução de aproximadamente 78,8% |
+| Carga: p50 / p99 / máximo | 6,13 / 8,03 / 8,05 s | 2 ms / 1,75 / 1,75 s | Não misturar milissegundos com segundos |
+| Carga: vazão total | 8,1 req/s | 114,1 req/s | Aproximadamente 14,1 vezes; fase de apenas 1,75 s, não capacidade sustentada |
+
+Fontes: [relatório antes](antes-reproduce.txt), [relatório depois completo](depois-reproduce.txt) e [comparação estruturada](depois-comparacao.json). O texto `baseline → load` impresso pelo gerador compara **duas fases da mesma execução**; não é a comparação entre versões desta tabela.
+
+Os **210 traces** do depois confirmam 210 respostas 200, contra 125 respostas 200 e 85 respostas 502 no antes. A fase de carga contém 189 respostas completas e 11 parciais; a sequencial, sete completas e três parciais. Essa classificação é reconstruída contando, por trace, eventos `quotation.cache_hit` após a composição e chamadas HTTP 200 dos mocks: três propostas indicam completa; uma ou duas, parcial. Todas as 200 requisições da carga têm ao menos uma proposta válida rastreável, sob a validade de 300 s e duração curta da execução. **O loadgen original não captura corpos**; o contrato sem 200 vazio e a validade também são comprovados pelos testes da implementação, não por uma captura fictícia de payloads.
+
+RNF-01 (p95 ≤4 s), RNF-02 (≥190/200 úteis) e RNF-03 (≥16,2 req/s) foram atingidos **nesta execução**. Isso não é SLA de produção, repetição estatística nem prova de tráfego com riscos sempre novos. O cache já é aquecido pela fase sequencial; não houve paralelização das chamadas por requisição. As datas diferem e o uso de recursos por outros processos do host não foi controlado.
+
+### As sete evidências
+
+| Categoria | Artefato e origem | Legenda |
+| --- | --- | --- |
+| Relatório antes/depois | [Antes](antes-reproduce.txt), [depois](depois-reproduce.txt): stdout/stderr de `make down; make reproduce`; [comparação](depois-comparacao.json) | Mesmos defaults e perfis, com p95, sucesso e vazão comparados acima |
+| Suíte completa | [make test](202611221600-make-test.txt), [contexto](202611221600-contexto.json), [preservação](202611221600-preservacao-testes.json) | 96 testes principais/262 testes e subtestes, sem falhas/skips e sem cache; nenhum fonte Go ou dependência mudou desde a validação |
+| Breaker aberto | [Trace JSON padrão](depois-trace-breaker.json), selecionado do [export de 210 traces](depois-traces.json) | `partner.short_circuit`, duas propostas de cache, 0,832 ms no span servidor e zero spans HTTP de saída |
+| Resposta de cache | [Trace JSON padrão](depois-trace-cache.json), selecionado do mesmo export | Três eventos `quotation.cache_hit`, 0,589 ms no servidor e zero spans HTTP de saída |
+| Ciclo do breaker | [Estado reconstruído dos logs](auxiliar-breaker-state.png), [contagens por direção](auxiliar-breaker-transitions.png), [PromQL/valores](auxiliar-breaker-transitions-prometheus.json), [logs com timestamps](auxiliar-api.log), [transições](auxiliar-transicoes.json) | Transições reais fechado → aberto → meio aberto → fechado; sem fabricar gauge ou alongar o meio aberto |
+| Aquecimento do cache | [Gráfico acumulado auxiliar](auxiliar-cache-hit-rate.png), [PromQL/valores acumulados](auxiliar-cache-hit-rate-cumulative-prometheus.json), [taxa móvel](auxiliar-cache-hit-rate-prometheus.json), [contadores](auxiliar-cache-lookups-prometheus.json) | Repetições espaçadas mostram reuso; erros separados do denominador e sem extrapolação para produção |
+| p95 do POST /quotes | [Antes PNG](antes-p95.png), [depois PNG](depois-p95.png), [antes JSON](antes-p95-prometheus.json), [depois JSON](depois-p95-prometheus.json) | Mesma PromQL, rate `[1m]`, passo 5 s, escala 0–10 s e intervalos absolutos de 79 s, deslocados entre execuções |
+
+![p95 do POST /quotes depois](depois-p95.png)
+
+Os traces padrão selecionados são `ca7b560f8029866827ebe3a707198736` (breaker) e `1ba14dbb3dd98293dc0b7a151285097e` (cache). No Jaeger, abrir `/trace/<id>` enquanto a sessão original existir; depois do reset, usar o JSON exportado. Ambos retornam 200; o bloqueio não precisa descartar as outras propostas. Não há spans HTTP de chamadas evitadas.
+
+### Janelas, consultas e captura padrão
+
+| Intervalo do depois, 22/11/2026 | UTC |
+| --- | --- |
+| Sequencial | 20:09:59,130 a 20:10:09,142 |
+| Carga | 20:10:09,142 a 20:10:10,894 |
+| Gráficos Prometheus | 20:09:44 a 20:11:03 |
+| Export consolidado, com Compose ativo | 20:11:15 |
+
+Os horários completos, parâmetros e URLs estão em [depois-captura.json](depois-captura.json). O pico estimado do histograma foi **2,007 s**, não os **1,70 s** empíricos do relatório. No antes, a mesma distinção era 9,702 s contra 8,01 s. Não preencher `NaN`, série ausente ou intervalo anterior à primeira amostra como zero. SDK a cada 10 s e scrape a cada 5 s limitam a resolução, especialmente na fase de carga de 1,75 s.
+
+```promql
+histogram_quantile(0.95, sum by (le) (
+  rate(http_server_request_duration_seconds_bucket{
+    service_name="quotation-api",http_request_method="POST",http_route="/quotes"
+  }[1m])
+))
+```
+
+Para repetir o export da série em sessão ainda retida:
+
+```powershell
+$query = 'histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name="quotation-api",http_request_method="POST",http_route="/quotes"}[1m])))'
+$url = 'http://127.0.0.1:9090/api/v1/query_range?query=' +
+    [Uri]::EscapeDataString($query) + '&start=1795378184&end=1795378263&step=5'
+Invoke-WebRequest -Uri $url -NoProxy -OutFile 'depois-p95-novo-export.json'
+```
+
+Os 210 traces foram obtidos com `GET /api/traces?service=quotation-api&operation=POST%20%2Fquotes&limit=500&start=1795378010491707&end=1795378227701190` no Jaeger. [Métricas brutas](depois-metricas.prom), [log da API](depois-api.log), [serviços ativos](depois-servicos.jsonl), séries de [cache](depois-cache-lookups-prometheus.json), [hit rate](depois-cache-hit-rate-prometheus.json) e [transições](depois-breaker-transitions-prometheus.json) foram exportados **antes** de reiniciar o cenário para o auxiliar.
+
+Na execução padrão houve **561 hits, 38 misses e 31 erros de GET** em 630 oportunidades, sem erro de SET nos traces. O hit rate de leituras sem erro é **93,66%**; a fração efetivamente atendida por cache sobre todas as oportunidades é **89,05%**. Excluir erros muda o denominador e não autoriza esconder a indisponibilidade observada no prazo Redis de 20 ms. Os traces mostram 67 chamadas HTTP reais às parceiras e dois curtos-circuitos; 153 requisições foram inteiramente atendidas pelo cache.
+
+### Experimento auxiliar, separado da comparação padrão
+
+Só depois de exportar e renderizar a coleta padrão foram executados `docker compose down -v` e `docker compose up -d --wait`, **sem alterar perfis ou configuração**. [Saída dos comandos](auxiliar-comandos.txt). O estímulo repetiu o mesmo risco 25 vezes, espaçando as requisições em 2 s; depois enviou lotes de três riscos novos em paralelo até observar `circuit_open` da `partner-flaky`. Repetiu um desses riscos para aproveitar o cache das outras parceiras, esperou pelo menos 5,3 s para uma sondagem real e verificou o fechamento. Não houve falha fabricada, mudança de seed ou alongamento do meio aberto.
+
+O [registro de requisições](auxiliar-requisicoes.json) contém fase, índice do risco, trace ID, duração, status, fontes e ausências; não copia CPF, placa ou identificadores de proposta. [Metadados e URLs](auxiliar-captura.json), [todos os traces](auxiliar-traces.json), [bloqueio selecionado](auxiliar-trace-breaker.json), [cache selecionado](auxiliar-trace-cache.json) e [sondagem bem-sucedida](auxiliar-trace-recuperacao.json) permitem cruzar os estímulos com os sinais.
+
+Foram **40 requisições** em um cenário novo. O aquecimento ocorreu de **20:11:55,785 a 20:12:48,034 UTC**. A janela dos gráficos é **20:11:45–20:13:27 UTC**, passo 5 s; os exports ocorreram com o Compose ativo. O hit rate acumulado observado sobe de 50% na primeira amostra para 95,45% por parceira antes da onda de riscos novos; depois cai, como esperado. A primeira amostra não é o instante do primeiro miss: o export periódico explica a lacuna. A consulta móvel por `rate` só ficou finita após o aquecimento inicial; por isso seu JSON é preservado, mas o gráfico de aquecimento usa a razão **acumulada desde o reset**, sem alegar uma taxa móvel diferente.
+
+![Aquecimento auxiliar do cache](auxiliar-cache-hit-rate.png)
+
+Consulta do gráfico acumulado:
+
+```promql
+sum by (partner) (prumo_cache_lookups_total{service_name="quotation-api",result="hit"})
+/
+sum by (partner) (prumo_cache_lookups_total{service_name="quotation-api",result=~"hit|miss"})
+```
+
+Consulta operacional móvel, também exportada:
+
+```promql
+sum by (partner) (rate(prumo_cache_lookups_total{service_name="quotation-api",result="hit"}[1m]))
+/
+sum by (partner) (rate(prumo_cache_lookups_total{service_name="quotation-api",result=~"hit|miss"}[1m]))
+```
+
+```promql
+sum by (partner) (rate(prumo_cache_lookups_total{service_name="quotation-api",result="error"}[1m]))
+```
+
+![Transições auxiliares do breaker](auxiliar-breaker-transitions.png)
+
+```promql
+sum by (from,to) (
+  prumo_breaker_transitions_total{service_name="quotation-api",partner="partner-flaky"}
+)
+```
+
+O último gráfico mostra **contagens acumuladas por direção**, não um gauge amostrado de estado. A ordem e os instantes exatos estão nos logs e em `auxiliar-transicoes.json`; meio aberto e fechamento podem cair no mesmo export de 10 s. Os pontos ausentes antes da primeira emissão não são zeros inventados. O arquivo [auxiliar-captura.json](auxiliar-captura.json) declara a janela absoluta própria e o passo de 5 s; **essa janela e essa carga não substituem a execução padrão**.
+
+![Estado reconstruído do breaker auxiliar](auxiliar-breaker-state.png)
+
+O [JSON da reconstrução](auxiliar-breaker-state.json) mantém a origem de cada transição. O estado fechado inicial é conhecido pela inicialização do breaker e ausência de transições anteriores nos logs; o estado permanece entre callbacks. Abertura: **20:12:54,026342 UTC**; meio aberto: **20:13:01,345122 UTC**; fechamento: **20:13:01,532460 UTC**. A sondagem dura cerca de **187 ms**, sem alongamento para aparecer no gráfico. O log tem timestamp de registro do callback, não é uma medição de gauge. O Counter Prometheus corrobora uma ocorrência de cada direção.
+
+O trace auxiliar de bloqueio `695a1453b33f4f9a8e8f593d0f5098be` tem **1,379 ms e zero spans HTTP cliente**; o de cache `0803862db26b43b0aed636516d7a4cb6`, **0,982 ms e zero spans cliente**. A recuperação `3fb27f2a605a44a9a910f2500888042e` tem **189,236 ms e uma chamada HTTP**, à `partner-flaky` admitida como sondagem. Os traces completos e os contadores permanecem verificáveis depois do encerramento do ambiente.
+
+### Reprodução do estímulo auxiliar
+
+Exportar a execução padrão **antes** do reset. Em seguida, executar `docker compose down -v` e `docker compose up -d --wait` no projeto deste desafio, sem overrides. O trecho abaixo reproduz a sequência de pedidos sintéticos usando apenas a biblioteca padrão do Python; não modifica mocks ou a aplicação. O segundo argumento identifica o risco, reutilizado nas tentativas bloqueada e de recuperação.
+
+```powershell
+@'
+import concurrent.futures, json, time, urllib.error, urllib.request, uuid
+http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+def post(phase, index):
+    trace = uuid.uuid4().hex
+    body = {"driver":{"document":"12345678900","birth_year":1988},
+            "vehicle":{"plate":"AUX0001","model":"aux-warm" if phase=="warm" else f"aux-risk-{index}",
+                       "year":2020,"value_cents":8500000},"coverage":"comprehensive"}
+    request = urllib.request.Request("http://127.0.0.1:8080/quotes", data=json.dumps(body).encode(),
+        headers={"Content-Type":"application/json","X-Tenant-Id":"corretora-a",
+                 "traceparent":"00-"+trace+"-"+uuid.uuid4().hex[:16]+"-01"})
+    try:
+        response = http.open(request, timeout=15)
+    except urllib.error.HTTPError as error:
+        response = error
+    with response:
+        result = json.load(response)
+        assert response.status == 200 and result["quotes"]
+    print(phase, index, trace, result["status"], result["unavailable_partners"], flush=True)
+    return index, result
+def blocked(result):
+    return any(p["partner"]=="partner-flaky" and p["reason"]=="circuit_open"
+               for p in result["unavailable_partners"])
+for _ in range(25):
+    post("warm", 0)
+    time.sleep(2)
+selected = None
+with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    for wave in range(10):
+        batch = list(executor.map(lambda n: post("new-risk", n), range(wave*3+1, wave*3+4)))
+        selected = next((index for index, result in batch if blocked(result)), None)
+        if selected is not None:
+            break
+assert selected is not None, "Abertura nao observada; nao declarar sucesso."
+assert blocked(post("blocked-repeat", selected)[1])
+for _ in range(6):
+    time.sleep(5.3)
+    result = post("probe", selected)[1]
+    if any(q["partner"]=="partner-flaky" and q["source"]=="partner" for q in result["quotes"]):
+        break
+else:
+    raise RuntimeError("Recuperacao nao observada.")
+post("recovered-hit", selected)
+'@ | python -
+```
+
+Após aguardar export/scrape, consultar Prometheus com as PromQL acima, serviço `quotation-api`, e a janela absoluta dessa nova execução. Exportar os traces pelos IDs impressos, logs com `docker compose logs --no-color --timestamps quotation-api` e métricas com `GET http://127.0.0.1:8889/metrics`. A concorrência e a disponibilidade dos recursos do host podem alterar a ordem e o número de pedidos necessários; registrar o observado em vez de copiar os números desta sessão. Salvar tudo antes de novo `down -v`.
+
+### Integridade e encerramento
+
+O [registro de integridade](depois-integridade.json) relaciona SHA-256 dos novos artefatos e as verificações de sete categorias, 210 traces padrão, 40 auxiliares, propostas úteis e ausência de chamadas evitadas. Os hashes dos artefatos anteriores estão em `depois-contexto.json`; todos permaneceram idênticos, com a única exceção deste índice, que recebeu somente o apêndice do depois. Código Go, dependências, Makefile, Compose, perfis, mocks e gerador não foram alterados.
+
+Todos os exports e gráficos foram persistidos e conferidos **antes do encerramento**. Em seguida foi executado `make down` somente neste projeto; [saída e confirmação de nenhum container remanescente do projeto](depois-encerramento.txt). O [snapshot auxiliar dos serviços](auxiliar-servicos.jsonl) e o snapshot padrão preservam a prova de que a captura ocorreu com os serviços ativos. Nenhuma limpeza global, reinício do Docker ou alteração de recursos de outros projetos foi realizada. As evidências em arquivo continuam verificáveis sem a retenção efêmera do Prometheus/Jaeger.

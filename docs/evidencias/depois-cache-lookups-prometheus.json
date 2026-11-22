@@ -1,0 +1,448 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-degrading",
+          "result": "hit",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378219,
+            "205"
+          ],
+          [
+            1795378224,
+            "205"
+          ],
+          [
+            1795378229,
+            "205"
+          ],
+          [
+            1795378234,
+            "205"
+          ],
+          [
+            1795378239,
+            "205"
+          ],
+          [
+            1795378244,
+            "205"
+          ],
+          [
+            1795378249,
+            "205"
+          ],
+          [
+            1795378254,
+            "205"
+          ],
+          [
+            1795378259,
+            "205"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-degrading",
+          "result": "miss",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378209,
+            "1"
+          ],
+          [
+            1795378214,
+            "1"
+          ],
+          [
+            1795378219,
+            "5"
+          ],
+          [
+            1795378224,
+            "5"
+          ],
+          [
+            1795378229,
+            "5"
+          ],
+          [
+            1795378234,
+            "5"
+          ],
+          [
+            1795378239,
+            "5"
+          ],
+          [
+            1795378244,
+            "5"
+          ],
+          [
+            1795378249,
+            "5"
+          ],
+          [
+            1795378254,
+            "5"
+          ],
+          [
+            1795378259,
+            "5"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-flaky",
+          "result": "error",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378219,
+            "4"
+          ],
+          [
+            1795378224,
+            "4"
+          ],
+          [
+            1795378229,
+            "4"
+          ],
+          [
+            1795378234,
+            "4"
+          ],
+          [
+            1795378239,
+            "4"
+          ],
+          [
+            1795378244,
+            "4"
+          ],
+          [
+            1795378249,
+            "4"
+          ],
+          [
+            1795378254,
+            "4"
+          ],
+          [
+            1795378259,
+            "4"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-flaky",
+          "result": "hit",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378219,
+            "178"
+          ],
+          [
+            1795378224,
+            "178"
+          ],
+          [
+            1795378229,
+            "178"
+          ],
+          [
+            1795378234,
+            "178"
+          ],
+          [
+            1795378239,
+            "178"
+          ],
+          [
+            1795378244,
+            "178"
+          ],
+          [
+            1795378249,
+            "178"
+          ],
+          [
+            1795378254,
+            "178"
+          ],
+          [
+            1795378259,
+            "178"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-flaky",
+          "result": "miss",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378209,
+            "2"
+          ],
+          [
+            1795378214,
+            "2"
+          ],
+          [
+            1795378219,
+            "28"
+          ],
+          [
+            1795378224,
+            "28"
+          ],
+          [
+            1795378229,
+            "28"
+          ],
+          [
+            1795378234,
+            "28"
+          ],
+          [
+            1795378239,
+            "28"
+          ],
+          [
+            1795378244,
+            "28"
+          ],
+          [
+            1795378249,
+            "28"
+          ],
+          [
+            1795378254,
+            "28"
+          ],
+          [
+            1795378259,
+            "28"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-slow",
+          "result": "error",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378219,
+            "27"
+          ],
+          [
+            1795378224,
+            "27"
+          ],
+          [
+            1795378229,
+            "27"
+          ],
+          [
+            1795378234,
+            "27"
+          ],
+          [
+            1795378239,
+            "27"
+          ],
+          [
+            1795378244,
+            "27"
+          ],
+          [
+            1795378249,
+            "27"
+          ],
+          [
+            1795378254,
+            "27"
+          ],
+          [
+            1795378259,
+            "27"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-slow",
+          "result": "hit",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378219,
+            "178"
+          ],
+          [
+            1795378224,
+            "178"
+          ],
+          [
+            1795378229,
+            "178"
+          ],
+          [
+            1795378234,
+            "178"
+          ],
+          [
+            1795378239,
+            "178"
+          ],
+          [
+            1795378244,
+            "178"
+          ],
+          [
+            1795378249,
+            "178"
+          ],
+          [
+            1795378254,
+            "178"
+          ],
+          [
+            1795378259,
+            "178"
+          ]
+        ]
+      },
+      {
+        "metric": {
+          "__name__": "prumo_cache_lookups_total",
+          "exported_job": "quotation-api",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-slow",
+          "result": "miss",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0"
+        },
+        "values": [
+          [
+            1795378209,
+            "2"
+          ],
+          [
+            1795378214,
+            "2"
+          ],
+          [
+            1795378219,
+            "5"
+          ],
+          [
+            1795378224,
+            "5"
+          ],
+          [
+            1795378229,
+            "5"
+          ],
+          [
+            1795378234,
+            "5"
+          ],
+          [
+            1795378239,
+            "5"
+          ],
+          [
+            1795378244,
+            "5"
+          ],
+          [
+            1795378249,
+            "5"
+          ],
+          [
+            1795378254,
+            "5"
+          ],
+          [
+            1795378259,
+            "5"
+          ]
+        ]
+      }
+    ]
+  }
+}

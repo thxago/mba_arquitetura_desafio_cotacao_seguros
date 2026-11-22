@@ -1,8 +1,8 @@
 # SAD - Prumo Cota
 
-**Solution Architecture Document | versão 0.7 | 22/11/2026**
+**Solution Architecture Document | versão 0.8 | 22/11/2026**
 
-**Estado:** seções 1 a 4 elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e conferência dos sinais no Prometheus/Jaeger. Seções 5 a 8 reservadas para as próximas etapas. A arquitetura de destino está **parcialmente implementada**, sem medição da carga padrão do depois nem comprovação das metas de carga. Este documento parcial não declara o desafio concluído.
+**Estado:** seções 1 a 4 elaboradas; timeout, circuit breaker, cache isolado, fallback parcial e sinais de negócio implementados, com provas determinísticas, integração no boot e sete categorias de evidência coletadas. A carga padrão do depois atingiu RNF-01 a RNF-03 nesta execução de laboratório; isso não é SLA nem capacidade sustentada. Seções 5 a 8 reservadas para as próximas etapas. A arquitetura de produção está **parcialmente implementada**; este documento parcial não declara o desafio concluído.
 
 ## 1. Introdução
 
@@ -24,8 +24,9 @@ Este SAD orienta a extensão da API existente na fronteira com as parceiras. Par
 | F-06 | `internal\platform\telemetry.go`, `deploy\otel\collector.yaml` e `deploy\prometheus\prometheus.yml` | Caminho real da telemetria, intervalos e destinos |
 | F-07 | [gobreaker v2.4.0: código](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/gobreaker.go) e [módulo](https://github.com/sony/gobreaker/blob/0ae90251b774f890e7586c96ea82d61eb74d556d/v2/go.mod), consultados em 22/11/2026 | API e semântica da biblioteca escolhida; dependência adicionada em `go.mod`/`go.sum` |
 | F-08 | `cmd\partner-mock\behavior.go`, `cmd\partner-mock\config.go`, `cmd\partner-mock\main.go` e `cmd\partner-mock\feasibility_test.go` | Latência efetiva, validade padrão, cancelamento e sequência determinística das parceiras |
+| F-09 | [Sete evidências](evidencias/README.md#depois-da-intervenção), [relatório padrão do depois](evidencias/depois-reproduce.txt), [comparação](evidencias/depois-comparacao.json) e [metadados](evidencias/depois-captura.json) | Medição própria em 22/11/2026, mesmos defaults; estímulo auxiliar explicitamente separado |
 
-**Existente** significa conferido no código ou na configuração. **Medido** significa obtido na execução F-04, não copiado de exemplos do enunciado. **Pressuposto** é hipótese com consequência explícita na seção 1.5. **Proposto** é requisito ou desenho para implementação futura. As obrigações atribuídas a SUSEP e LGPD são as premissas fornecidas por F-01 para este exercício, não uma certificação jurídica independente.
+**Existente** significa conferido no código ou na configuração. **Medido** significa obtido nas execuções F-04 ou F-09, não copiado de exemplos do enunciado. **Pressuposto** é hipótese com consequência explícita na seção 1.5. **Proposto** é requisito ou desenho para implementação futura. As obrigações atribuídas a SUSEP e LGPD são as premissas fornecidas por F-01 para este exercício, não uma certificação jurídica independente.
 
 O enunciado ainda está no README da raiz; sua futura organização em outro documento não é apresentada como arquivo já existente.
 
@@ -130,9 +131,9 @@ O `loadgen` é uma ferramenta efêmera do perfil `load`, não um nono serviço s
 
 F-04 mostra por que a intervenção se concentra nessa fronteira: no [trace lento](evidencias/antes-trace-lento.json), as três chamadas não se sobrepõem, e a `partner-degrading` ocupa 6.148,984 ms de uma resposta de 8.049,881 ms. No [trace com erro](evidencias/antes-trace-erro.json), a resposta 503 da segunda parceira vira 502 na API, e não há span da terceira.
 
-### 2.3 Contêineres - C4 nível 2 do depois, proposto
+### 2.3 Contêineres - C4 nível 2 do depois
 
-**O desenho abaixo representa o recorte local implementado, ainda sem comparação da carga padrão do depois.** Timeout, breaker, cache, fallback parcial e métricas/eventos de negócio estão ligados no boot. A chegada dos sinais foi conferida em backends isolados, nas condições da seção 4.6; isso não comprova as metas de carga. A agregação continua sequencial, sem depender do bônus.
+**O desenho abaixo representa o recorte local implementado e medido na carga padrão de F-09.** Timeout, breaker, cache, fallback parcial e métricas/eventos de negócio estão ligados no boot. Além da conferência inicial em backends isolados, há evidências do Compose real. A agregação continua sequencial, sem depender do bônus; a aprovação nesta carga não é garantia de produção.
 
 ```mermaid
 flowchart LR
@@ -210,11 +211,15 @@ O baseline foi executado em 17/11/2026 no commit `cbc3c1ee7f595d066d44fa2825c019
 
 Fonte: F-04. Os 210 traces preservados confirmam 125 respostas 200 e 85 respostas 502. A disponibilidade útil de produção **não** é inferida desses poucos segundos; “hoje” nos RNFs abaixo significa essa condição de laboratório.
 
-O depois deverá usar a mesma carga, seeds, perfis e ambiente comparável, com reset antes da execução. `cmd\loadgen\report.go` calcula percentil por nearest-rank sobre todas as durações completadas e vazão por total completado/tempo da fase. Não misturar essas medidas com histogramas Prometheus nem com vazão somente de sucessos.
+O depois usou a mesma carga, seeds, perfis e versões de ferramentas, no mesmo host, com reset antes da execução. `cmd\loadgen\report.go` calcula percentil por nearest-rank sobre todas as durações completadas e vazão por total completado/tempo da fase. Não misturar essas medidas com histogramas Prometheus nem com vazão somente de sucessos.
+
+**Depois, F-09 — 22/11/2026, commit `c6c4c27c85608b252017cc4041ec93756e1d1133`.** `make down; make reproduce`, sem overrides. Na fase sequencial (20:09:59–20:10:09 UTC), 10/10 sucessos, p95 2,04 s e 1,0 req/s. Na carga padrão (20:10:09–20:10:10 UTC), **200/200 úteis, p95 1,70 s e 114,1 req/s**, com 1,75 s de duração. Em relação ao antes, p95 caiu aproximadamente 78,8%, sucesso aumentou 40 pontos percentuais e vazão foi aproximadamente 14,1 vezes maior. O p95 frio sequencial permaneceu em torno de 2 s.
+
+Os 210 traces preservados confirmam todas as respostas 200 com propostas rastreáveis. A contagem de eventos de cache após composição e chamadas HTTP 200 dos mocks identifica 189 completas/11 parciais na carga e sete completas/três parciais na sequencial; não é uma captura de corpos pelo loadgen. Os testes preservados comprovam o contrato sem 200 vazio e a validade. Fonte e método estão em [depois-comparacao.json](evidencias/depois-comparacao.json). São cinco riscos repetidos e cache aquecido pela fase sequencial, não produção ou capacidade sustentada; as datas diferem e outros consumidores de recursos do host não foram controlados.
 
 ### 3.4 Requisitos não funcionais e origem dos alvos
 
-Os alvos a seguir são **propostos, ainda não comprovados**. Não representam parâmetros de configuração, nem aprovações comerciais já obtidas.
+Os alvos foram fixados antes da implementação. **RNF-01 a RNF-03 foram atingidos no cenário padrão de F-09**, não como garantia geral de produção. Os demais requisitos têm provas específicas de código/desenho; retenção regulatória continua proposta de produção. A coluna “Hoje” abaixo preserva o baseline de F-04. Os alvos não representam parâmetros de configuração nem aprovações comerciais já obtidas.
 
 | ID | Requisito e métrica | Hoje | Alvo e unidade | Método de medição/aceite | Origem do alvo e vínculo |
 | --- | --- | --- | --- | --- | --- |
@@ -247,6 +252,8 @@ histogram_quantile(
 
 A janela absoluta foi `2026-11-17T21:20:31Z` a `2026-11-17T21:21:50Z`, com passo de 5 s e eixo Y de 0 a 10 s. O máximo estimado da série foi **9,702 s**, não os 8,01 s do RNF-01: histogramas interpolam buckets e a consulta usa janela móvel. Manter a mesma consulta e escala para o gráfico do depois; usar o relatório empírico como método de aceite do RNF-01.
 
+O [gráfico do depois](evidencias/depois-p95.png), capturado com o Compose ativo, usa a mesma PromQL, passo, janela móvel, escala e intervalo absoluto de 79 s, deslocado para **2026-11-22T20:09:44Z–20:11:03Z**. O pico estimado foi **2,007 s**, distinto dos 1,70 s empíricos; [amostras e `NaN` originais](evidencias/depois-p95-prometheus.json). As sete categorias, comandos, legendas e limites estão no [índice de evidências](evidencias/README.md#as-sete-evidências).
+
 O SDK exporta métricas a cada 10 s e o Prometheus raspa o Collector a cada 5 s (F-06); a carga é curta e há defasagem entre a requisição e sua observação. Não preencher lacunas como zero. Os arquivos exportados de F-04 permanecem a fonte do antes mesmo após expirar a retenção ou derrubar o Compose.
 
 As métricas de breaker/cache estão implementadas e sua chegada aos backends está comprovada na seção 4.6; a seção 6 ainda deverá associá-las a limiares e ações. Timeout, breaker e validade de cache possuem provas determinísticas próprias. Não são demonstrados apenas por um p95 menor numa carga que repete riscos.
@@ -261,7 +268,7 @@ As métricas de breaker/cache estão implementadas e sua chegada aos backends es
 
 ## 4. Detalhamento da arquitetura
 
-**D-01 a D-03 e sinais de negócio implementados.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. As provas estão nas seções 4.6 e 4.8; não há medições da carga padrão do depois. Os parâmetros continuam escolhas defendidas por código do cenário e baseline. Antes de alterá-los durante o PoC, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
+**D-01 a D-03 e sinais de negócio implementados.** As decisões D-01 a D-03 atendem RF-05 a RF-09 sob P-01 a P-04. As provas estão nas seções 3.3, 4.6 e 4.8, incluindo a carga padrão do depois. Os parâmetros continuam escolhas defendidas por código do cenário e baseline; não foram afinados para esta coleta. Antes de alterá-los, atualizar a justificativa aqui e, se necessário, as metas da seção 3.
 
 ### 4.1 Sequência de atendimento e orçamento de espera
 
@@ -493,6 +500,12 @@ O Counter de transições, não um gauge amostrado esporadicamente, é a prova m
 
 Como o daemon Docker não respondeu, foram usados processos Windows isolados, em loopback, de Jaeger 1.65.0, Collector 0.116.1 e Prometheus 3.1.0, com binários oficiais verificados por SHA-256. A composição Go usa os mesmos cliente protegido, serviço com cache, handler e SDK/exportadores; o teste de integração verifica separadamente o `newAPI` real. O estímulo auxiliar usa upstream HTTP controlado e miniredis, sem alterar os mocks oficiais. Collector recebe OTLP em 14317 e expõe métricas em 18889; Jaeger consulta em 26686 e Prometheus em 19090. O scrape auxiliar é de 1 s, mantendo o export do SDK em 10 s. Os processos foram encerrados sem reiniciar serviços compartilhados. **Não é execução do Compose padrão, comparação antes/depois nem comprovação de RNF-01 a RNF-03.**
 
+**Coleta posterior no Compose real — F-09.** O Docker voltou a responder. A carga padrão gerou 561 hits, 38 misses e **31 erros de GET** em 630 oportunidades, zero erros de SET nos traces, 67 chamadas HTTP e dois curtos-circuitos. O hit rate que exclui erros é 93,66%, contra 89,05% das oportunidades efetivamente servidas por cache; não ocultar os erros do prazo Redis de 20 ms nem aplicar a primeira razão à conta de economia. O [trace padrão bloqueado](evidencias/depois-trace-breaker.json) responde em 0,832 ms, com cache das outras duas parceiras e nenhum span HTTP; o [trace padrão de cache](evidencias/depois-trace-cache.json) responde em 0,589 ms, com três eventos de hit e nenhum span HTTP.
+
+Após exportar a execução padrão, o mesmo Compose foi reiniciado sem alterações para um **auxiliar separado de 40 requisições**. A janela foi 20:11:45–20:13:27 UTC, passo 5 s, export 10 s/scrape 5 s. Vinte e cinco pedidos iguais, a cada 2 s, mostraram [hit rate acumulado](evidencias/auxiliar-cache-hit-rate.png) de 50% na primeira amostra até 95,45%; a onda posterior de riscos novos reduziu esse percentual. A curva usa hits/(hits+misses) acumulados, não a consulta móvel por rate, cujo [export separado](evidencias/auxiliar-cache-hit-rate-prometheus.json) também foi preservado. Não é hit rate de produção.
+
+As transições da `partner-flaky` foram registradas em 20:12:54,026342 UTC (abertura), 20:13:01,345122 UTC (meio aberto) e 20:13:01,532460 UTC (fechamento). O [gráfico de estado reconstruído dos logs](evidencias/auxiliar-breaker-state.png) e o [Counter por direção](evidencias/auxiliar-breaker-transitions.png) distinguem prova de estado de um gauge inexistente; os aproximadamente 187 ms de meio aberto não foram alongados. [Logs](evidencias/auxiliar-api.log), [PromQL/valores](evidencias/auxiliar-breaker-transitions-prometheus.json), [traces](evidencias/auxiliar-traces.json), [estímulos e janelas](evidencias/auxiliar-captura.json) permitem verificar a ordem. Nenhum mock, seed, perfil ou parâmetro de resiliência foi alterado. O [índice](evidencias/README.md#experimento-auxiliar-separado-da-comparação-padrão) mantém esse estímulo fora da comparação quantitativa padrão.
+
 ### 4.7 Limites conhecidos e riscos aceitos do recorte
 
 | Limite não resolvido | Gatilho que o expõe | Efeito para a corretora e encaminhamento arquitetural, sem implementar |
@@ -508,7 +521,7 @@ A mistura de preços/instantes não é observada necessariamente no mock: F-08 c
 
 ### 4.8 Escopo implementável e provas pendentes
 
-**Até esta versão:** base, evidências do antes, D-01 a D-03 e instrumentação de negócio estão implementados. O boot liga `partner.NewResilientClient`, `cache.NewRedis` e `quotation.NewCachedService`; configuração inválida falha na inicialização. A conexão Redis é preguiçosa e seu fechamento ocorre após o encerramento das requisições HTTP. O callback do breaker registra transições em log e no Counter em memória do SDK, sem I/O de rede nem consulta recursiva de estado; o exportador periódico faz o envio. A API agrega em série, continua após falha de parceira, descarta propostas que venceram e entrega resultado completo/parcial 200 ou recusa 503. As provas da carga padrão do depois continuam pendentes.
+**Até esta versão:** base, evidências do antes/depois, D-01 a D-03 e instrumentação de negócio estão implementados. O boot liga `partner.NewResilientClient`, `cache.NewRedis` e `quotation.NewCachedService`; configuração inválida falha na inicialização. A conexão Redis é preguiçosa e seu fechamento ocorre após o encerramento das requisições HTTP. O callback do breaker registra transições em log e no Counter em memória do SDK, sem I/O de rede nem consulta recursiva de estado; o exportador periódico faz o envio. A API agrega em série, continua após falha de parceira, descarta propostas que venceram e entrega resultado completo/parcial 200 ou recusa 503. A carga padrão do depois e o auxiliar separado têm exports persistidos em F-09.
 
 `internal\partner\resilience_test.go` cobre abertura e curto-circuito, uma sondagem em meio aberto, fechamento/reabertura, reset por sucesso e janela fixa, timeout de cabeçalhos/corpo, exclusão de cancelamento/prazo do consumidor, liberação da sondagem excluída, isolamento entre parceiras e conclusões tardias. Respostas inválidas e erros locais são diferenciados. `internal\partner\client_test.go` verifica também ausência de redirecionamento; `internal\platform\config_test.go` verifica configuração válida/inválida. `cmd\quotation-api\main_test.go` exercita a composição efetivamente chamada por `main` através de `POST /quotes`, incluindo o limiar personalizado e compartilhamento entre tenants.
 
@@ -520,7 +533,7 @@ A suíte original permanece. `NewClient`/`NewService` conservam o caminho básic
 
 `internal\partner\telemetry_test.go` verifica contagem de abertura/sondagem/fechamento e os dois motivos de curto-circuito com relógio virtual. `internal\quotation\telemetry_test.go` diferencia hit/miss/entrada inválida/vencida/erro de GET e SET sem lookup duplicado. `cmd\quotation-api\telemetry_test.go` captura o SDK no boot real, confere os três sinais, prova ausência de spans/observações HTTP nos caminhos evitados e busca valores privados nos atributos/eventos. A conferência em backends reais está na seção 4.6.
 
-**Validação consolidada, 22/11/2026, 19:56:44Z–19:57:14Z.** `make fmt`, `make vet`, `make test`, `make smoke` e `make build` passaram no commit `98e455389cd70da617d6e6912395ef514d61891f`, com Go 1.25.14/windows-amd64. A suíte completa foi executada sem cache de resultados (`GOFLAGS="-count=1 -v"`): 7 pacotes, 96 testes principais, 262 testes/subtestes, zero falhas/skips. [Saída integral dos testes](evidencias/202611221600-make-test.txt), [cinco comandos e códigos de saída](evidencias/202611221600-validacao.txt), [contexto/hashes](evidencias/202611221600-contexto.json) e [comparação AST dos 64 testes originais](evidencias/202611221600-preservacao-testes.json) estão persistidos. A comparação normaliza apenas a extensão de fixture de `PARTNER_TIMEOUTS` já necessária para os endpoints personalizados `a`/`b`; nenhuma asserção original foi retirada. Mocks, loadgen, template/perfis das parceiras e evidências anteriores foram preservados. Os únicos efeitos de `make fmt` eram terminadores/newline final; esses bytes preexistentes foram mantidos para evitar alterações alheias ao escopo. Nenhuma correção funcional foi necessária. Não houve execução de carga ou intervenção em serviços compartilhados; as metas RNF-01 a RNF-03 continuam sem comprovação.
+**Validação consolidada, 22/11/2026, 19:56:44Z–19:57:14Z.** `make fmt`, `make vet`, `make test`, `make smoke` e `make build` passaram no commit `98e455389cd70da617d6e6912395ef514d61891f`, com Go 1.25.14/windows-amd64. A suíte completa foi executada sem cache de resultados (`GOFLAGS="-count=1 -v"`): 7 pacotes, 96 testes principais, 262 testes/subtestes, zero falhas/skips. [Saída integral dos testes](evidencias/202611221600-make-test.txt), [cinco comandos e códigos de saída](evidencias/202611221600-validacao.txt), [contexto/hashes](evidencias/202611221600-contexto.json) e [comparação AST dos 64 testes originais](evidencias/202611221600-preservacao-testes.json) estão persistidos. A comparação normaliza apenas a extensão de fixture de `PARTNER_TIMEOUTS` já necessária para os endpoints personalizados `a`/`b`; nenhuma asserção original foi retirada. Mocks, loadgen, template/perfis das parceiras e evidências anteriores foram preservados. Os únicos efeitos de `make fmt` eram terminadores/newline final; esses bytes preexistentes foram mantidos para evitar alterações alheias ao escopo. Nenhuma correção funcional foi necessária. Nessa validação não houve execução de carga; a coleta posterior de F-09 é distinta e reutiliza a prova da suíte, pois nenhum fonte Go ou dependência mudou.
 
 | Prova a produzir nas tarefas de código/evidência | Condição de aceite específica |
 | --- | --- |
@@ -531,8 +544,8 @@ A suíte original permanece. `NewClient`/`NewService` conservam o caminho básic
 | Fallback parcial — implementada | Parceira indisponível não apaga propostas válidas das demais; ausentes/motivos aparecem; zero válidas gera 503, não 200 vazio; cancelamento do consumidor interrompe o trabalho |
 | Sinais de negócio — implementada e conferida | Dois Counters e histograma HTTP com valores variando no Prometheus; eventos de cache/curto-circuito no Jaeger, sem spans HTTP evitados nem marcadores privados |
 | Validação consolidada e preservação da base — concluída | Cinco comandos aprovados; suíte completa sem cache ou skips; logs íntegros, testes originais e perfis preservados |
-| Execução padrão do depois | `make down` e `make reproduce`, mesmos defaults e carga; capturar antes de derrubar, conforme seção 3; só ela serve de comparação quantitativa |
-| Estímulo auxiliar de transições | Usar riscos inéditos para não esconder falhas atrás de hits; percorrer a sequência padrão até observar as transições, com comando/janela declarados. Não alterar mocks nem apresentar carga auxiliar como comparação padrão |
+| Execução padrão do depois — coletada | `make down` e `make reproduce`, mesmos defaults e carga; 210 traces, relatórios completos e p95 na mesma consulta/escala, conforme seção 3; só ela serve de comparação quantitativa |
+| Estímulo auxiliar de transições — coletado | 40 pedidos separados da carga padrão; aquecimento, riscos inéditos, bloqueio rápido e recuperação real, com comando/janela declarados; mocks e perfis inalterados |
 
 A carga auxiliar pode variar o número de riscos/concorrência via argumentos já oferecidos pelo loadgen, sem editar seu código. Não há garantia de que o cache aquecido na execução padrão permita observar todas as transições. O ambiente e seus contadores precisam de reset para uma prova auxiliar reproduzível, mas só depois de exportar as evidências da execução padrão.
 

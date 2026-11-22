@@ -2,7 +2,7 @@
 
 ## Contrato atual do PoC
 
-Timeout, circuit breaker, cache isolado, fallback parcial e instrumentação de negócio estão implementados na API. A seção “Enunciado original” preserva a descrição do **baseline**, não o estado atual do código. A comparação de carga do depois ainda está pendente.
+Timeout, circuit breaker, cache isolado, fallback parcial e instrumentação de negócio estão implementados na API. A seção “Enunciado original” preserva a descrição do **baseline**, não o estado atual do código. As [sete evidências e a comparação antes/depois](docs/evidencias/README.md#depois-da-intervenção) estão coletadas.
 
 | HTTP | `status` | Resultado |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ Em **22/11/2026, 19:56:44Z–19:57:14Z**, sobre o commit `98e455389cd70da617d6e6
 
 As provas determinísticas já existentes incluem `TestBreakerOpensAndRecoversWithOneHalfOpenProbe` e `TestCacheIsolatesTenantsAndNormalizedHitPreservesOriginalExpiry`, com relógio virtual, além de fallback e integração do boot. Não foi necessário acrescentar testes redundantes ou alterar código para obter aprovação.
 
-Mocks, loadgen e perfis das parceiras permanecem iguais à base oficial; os artefatos anteriores não foram modificados. Na comparação AST, somente a entrada `PARTNER_TIMEOUTS` já acrescentada à fixture do teste de configuração com parceiras `a`/`b` foi normalizada; asserções originais permanecem. Após `make fmt`, foram descartadas apenas mudanças de terminadores e newline final em arquivos preexistentes, sem mudanças de tokens Go. A validação não iniciou nem reiniciou serviços compartilhados e **não substitui a comparação de carga do depois**, ainda pendente.
+Mocks, loadgen e perfis das parceiras permanecem iguais à base oficial; os artefatos anteriores não foram modificados. Na comparação AST, somente a entrada `PARTNER_TIMEOUTS` já acrescentada à fixture do teste de configuração com parceiras `a`/`b` foi normalizada; asserções originais permanecem. Após `make fmt`, foram descartadas apenas mudanças de terminadores e newline final em arquivos preexistentes, sem mudanças de tokens Go. Essa validação não iniciou nem reiniciou serviços compartilhados; a execução posterior da carga está documentada abaixo.
 
 Para repetir a suíte sem cache e com todos os casos visíveis:
 
@@ -89,6 +89,12 @@ $env:GOFLAGS = '-count=1 -v'
 make test
 Remove-Item Env:\GOFLAGS
 ```
+
+## Resultado medido antes/depois
+
+Em 22/11/2026, `make down` e `make reproduce` foram executados no **Compose padrão**, sem mudar carga, mocks, perfis ou parâmetros. Na fase de 200 requisições/50 em voo, o p95 passou de **8,01 s para 1,70 s**, o sucesso útil de **120/200 para 200/200** e a vazão de **8,1 para 114,1 req/s**. As metas RNF-01 a RNF-03 foram atingidas nessa amostra curta, com cinco riscos repetidos e cache aquecido; não são SLA, capacidade sustentada ou hit rate de produção. O p95 sequencial frio permaneceu em torno de 2 s.
+
+O [índice das sete evidências](docs/evidencias/README.md#as-sete-evidências) reúne relatórios completos, suíte, traces, gráficos PNG, PromQL e janelas. Os 210 traces do depois confirmam propostas úteis; houve também **31 erros de leitura Redis**, explicitados nos sinais, sem ocultá-los no hit rate. Um experimento **separado** de 40 requisições, com os mesmos perfis, comprovou aquecimento e `closed→open→half_open→closed`. Todos os exports foram persistidos antes do reset entre cenários; os arquivos do baseline foram preservados. Após conferir os artefatos, somente o Compose do desafio foi encerrado; [integridade e encerramento](docs/evidencias/README.md#integridade-e-encerramento).
 
 ## Enunciado original
 

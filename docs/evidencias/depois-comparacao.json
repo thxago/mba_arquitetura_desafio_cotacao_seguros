@@ -1,0 +1,90 @@
+{
+  "before": {
+    "sequential": {
+      "successes": 5,
+      "requests": 10,
+      "successPercent": 50.0,
+      "p50": "1.89s",
+      "p95": "2.03s",
+      "p99": "2.03s",
+      "max": "2.03s",
+      "throughputRequestsPerSecond": 0.5,
+      "duration": "18.77s"
+    },
+    "load": {
+      "successes": 120,
+      "requests": 200,
+      "successPercent": 60.0,
+      "p50": "6.13s",
+      "p95": "8.01s",
+      "p99": "8.03s",
+      "max": "8.05s",
+      "throughputRequestsPerSecond": 8.1,
+      "duration": "24.81s"
+    }
+  },
+  "after": {
+    "sequential": {
+      "successes": 10,
+      "requests": 10,
+      "successPercent": 100.0,
+      "p50": "197ms",
+      "p95": "2.04s",
+      "p99": "2.04s",
+      "max": "2.04s",
+      "throughputRequestsPerSecond": 1.0,
+      "duration": "10.02s"
+    },
+    "load": {
+      "successes": 200,
+      "requests": 200,
+      "successPercent": 100.0,
+      "p50": "2ms",
+      "p95": "1.70s",
+      "p99": "1.75s",
+      "max": "1.75s",
+      "throughputRequestsPerSecond": 114.1,
+      "duration": "1.75s"
+    }
+  },
+  "afterStatusInferredFromTrace": {
+    "sequential": {
+      "complete": 7,
+      "partial": 3
+    },
+    "load": {
+      "complete": 189,
+      "partial": 11
+    }
+  },
+  "inferenceMethod": "For each mock request, cache_hit events after composition + successful HTTP client spans count valid proposals. Exactly 3 => complete; 1/2 => partial. Source validity and no-empty contract covered by existing tests. The unmodified loadgen does not record response bodies.",
+  "cache": {
+    "hits": 561,
+    "misses": 38,
+    "getErrors": 31,
+    "setErrors": 0,
+    "operationalHitRateExcludingErrors": 0.9365609348914858,
+    "hitShareOfAllOpportunities": 0.8904761904761904
+  },
+  "loadTargets": {
+    "p95Seconds": 1.7,
+    "usefulResponses": 200,
+    "throughputRequestsPerSecond": 114.1,
+    "RNF01MetInThisRun": true,
+    "RNF02MetInThisRun": true,
+    "RNF03MetInThisRun": true
+  },
+  "roundedReportComparison": {
+    "p95ReductionPercent": 78.77652933832708,
+    "successImprovementPercentagePoints": 40.0,
+    "throughputFactor": 14.08641975308642
+  },
+  "testEvidence": "202611221600-make-test.txt",
+  "testEvidenceReuse": "No Go source or dependency changes since the validated commit; no need to rerun or overwrite evidence.",
+  "limits": [
+    "One short run per version, same host/tools/default load and partner profiles, separate dates; no controlled measurement of other host resource consumers.",
+    "Synthetic workload repeats five risks; warm-cache throughput is not sustained capacity or production hit rate.",
+    "31 Redis GET operation failures are visible; healthy-read hit rate excludes them and is not the global avoided-HTTP fraction.",
+    "RNF results are scenario observations, not a production SLA; one valid proposal being useful remains a product assumption."
+  ]
+}

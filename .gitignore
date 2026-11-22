@@ -17,6 +17,8 @@ vendor/
 
 # Logs
 *.log
+!docs/evidencias/depois-api.log
+!docs/evidencias/auxiliar-api.log
 
 # Editores / SO
 .DS_Store

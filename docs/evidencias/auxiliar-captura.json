@@ -1,0 +1,53 @@
+{
+  "capturedUtc": "2026-11-22T20:13:40.972627+00:00",
+  "start": 1795378305,
+  "end": 1795378407,
+  "windowStartUtc": "2026-11-22T20:11:45+00:00",
+  "windowEndUtc": "2026-11-22T20:13:27+00:00",
+  "warmStartUtc": "2026-11-22T20:11:55.784861+00:00",
+  "warmEndUtc": "2026-11-22T20:12:48.033604+00:00",
+  "load": "25 identical requests, 2s apart; then batches of 3 novel risks until flaky opens; blocked risk repeated; wait >=5.3s for real probes.",
+  "requests": 40,
+  "stepSeconds": 5,
+  "rateWindow": "1m",
+  "settings": "Default Compose, original mock seed/latencies/failure rate; no configuration overrides.",
+  "queries": {
+    "cache-hit-rate": {
+      "query": "sum by (partner) (rate(prumo_cache_lookups_total{service_name=\"quotation-api\",result=\"hit\"}[1m])) / sum by (partner) (rate(prumo_cache_lookups_total{service_name=\"quotation-api\",result=~\"hit|miss\"}[1m]))",
+      "url": "http://127.0.0.1:9090/api/v1/query_range?query=sum+by+%28partner%29+%28rate%28prumo_cache_lookups_total%7Bservice_name%3D%22quotation-api%22%2Cresult%3D%22hit%22%7D%5B1m%5D%29%29+%2F+sum+by+%28partner%29+%28rate%28prumo_cache_lookups_total%7Bservice_name%3D%22quotation-api%22%2Cresult%3D~%22hit%7Cmiss%22%7D%5B1m%5D%29%29&start=1795378305&end=1795378407&step=5"
+    },
+    "cache-lookups": {
+      "query": "prumo_cache_lookups_total{service_name=\"quotation-api\"}",
+      "url": "http://127.0.0.1:9090/api/v1/query_range?query=prumo_cache_lookups_total%7Bservice_name%3D%22quotation-api%22%7D&start=1795378305&end=1795378407&step=5"
+    },
+    "breaker-transitions": {
+      "query": "sum by (from,to) (prumo_breaker_transitions_total{service_name=\"quotation-api\",partner=\"partner-flaky\"})",
+      "url": "http://127.0.0.1:9090/api/v1/query_range?query=sum+by+%28from%2Cto%29+%28prumo_breaker_transitions_total%7Bservice_name%3D%22quotation-api%22%2Cpartner%3D%22partner-flaky%22%7D%29&start=1795378305&end=1795378407&step=5"
+    },
+    "cache-hit-rate-cumulative": {
+      "query": "sum by (partner) (prumo_cache_lookups_total{service_name=\"quotation-api\",result=\"hit\"}) / sum by (partner) (prumo_cache_lookups_total{service_name=\"quotation-api\",result=~\"hit|miss\"})",
+      "url": "http://127.0.0.1:9090/api/v1/query_range?query=sum+by+%28partner%29+%28prumo_cache_lookups_total%7Bservice_name%3D%22quotation-api%22%2Cresult%3D%22hit%22%7D%29+%2F+sum+by+%28partner%29+%28prumo_cache_lookups_total%7Bservice_name%3D%22quotation-api%22%2Cresult%3D~%22hit%7Cmiss%22%7D%29&start=1795378305&end=1795378407&step=5",
+      "capturedUtc": "2026-11-22T20:15:16.607465+00:00"
+    }
+  },
+  "traceQuery": "http://127.0.0.1:16686/api/traces?service=quotation-api&operation=POST+%2Fquotes&start=1795378289918254&end=1795378420901136&limit=500",
+  "selectedTraces": {
+    "breaker": {
+      "traceId": "695a1453b33f4f9a8e8f593d0f5098be",
+      "serverDurationMs": 1.379,
+      "httpClientSpans": 0
+    },
+    "cache": {
+      "traceId": "0803862db26b43b0aed636516d7a4cb6",
+      "serverDurationMs": 0.982,
+      "httpClientSpans": 0
+    },
+    "recuperacao": {
+      "traceId": "3fb27f2a605a44a9a910f2500888042e",
+      "serverDurationMs": 189.236,
+      "httpClientSpans": 1
+    }
+  },
+  "transitionSequence": "closed->open 2026-11-22T20:12:54.026342001Z; open->half-open 2026-11-22T20:13:01.345122224Z; half-open->closed 2026-11-22T20:13:01.532459944Z",
+  "scope": "Auxiliary mechanism evidence only; not the before/after load comparison."
+}

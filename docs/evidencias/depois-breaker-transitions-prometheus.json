@@ -1,0 +1,61 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": {
+          "__name__": "prumo_breaker_transitions_total",
+          "exported_job": "quotation-api",
+          "from": "closed",
+          "instance": "otel-collector:8889",
+          "job": "quotation-api",
+          "partner": "partner-flaky",
+          "service_name": "quotation-api",
+          "telemetry_sdk_language": "go",
+          "telemetry_sdk_name": "opentelemetry",
+          "telemetry_sdk_version": "1.44.0",
+          "to": "open"
+        },
+        "values": [
+          [
+            1795378219,
+            "1"
+          ],
+          [
+            1795378224,
+            "1"
+          ],
+          [
+            1795378229,
+            "1"
+          ],
+          [
+            1795378234,
+            "1"
+          ],
+          [
+            1795378239,
+            "1"
+          ],
+          [
+            1795378244,
+            "1"
+          ],
+          [
+            1795378249,
+            "1"
+          ],
+          [
+            1795378254,
+            "1"
+          ],
+          [
+            1795378259,
+            "1"
+          ]
+        ]
+      }
+    ]
+  }
+}

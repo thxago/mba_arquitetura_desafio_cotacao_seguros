@@ -1,0 +1,54 @@
+{
+  "startedUtc": "2026-11-22T20:06:50.491707+00:00",
+  "commit": "c6c4c27c85608b252017cc4041ec93756e1d1133",
+  "branch": "main",
+  "go": "go version go1.25.14 windows/amd64",
+  "docker": "28.4.0",
+  "compose": "2.39.4-desktop.1",
+  "command": "make down; make reproduce",
+  "load": {
+    "durationSeconds": 120,
+    "concurrency": 50,
+    "requests": 200,
+    "timeoutSeconds": 30,
+    "baseline": 10,
+    "distinct": 5
+  },
+  "previousEvidenceSHA256": {
+    "docs/evidencias/202611221600-contexto.json": "135912fa62b9ef2ba7c3e0565f5ab31a183653112cf8a07f325a4b75aa7b1ba0",
+    "docs/evidencias/202611221600-make-test.txt": "1b13d0ed0d1b5fcd9e1beec5b9e31b31712f9ebf4165e1902a63b98ee93f64ea",
+    "docs/evidencias/202611221600-preservacao-testes.json": "037f59e3631abe0f29dcf771744b839e0dafa12d064e793a959f21822d42936b",
+    "docs/evidencias/202611221600-validacao.txt": "e244f62846967413e86032bf578c642b7a0c7a241b612b15509a1633ddb6c18c",
+    "docs/evidencias/antes-captura.json": "1c3c51234606beab8fffbd9059124a89c059ff8d142d96d42a3ce7a180cdbb74",
+    "docs/evidencias/antes-compose.json": "e775a7667f4055e3cf2bf9ec03c50c52ab418fca2b2193c7d78d029690d19532",
+    "docs/evidencias/antes-contexto.json": "3e6c48cd438f4cf44b7d28051831126266b585e06ac1bebaf466c52d2143930f",
+    "docs/evidencias/antes-metricas.prom": "a658510b5447dbfd1ce8d3edb57f5acc261bb54dfd81c31f05539274f6b04f3c",
+    "docs/evidencias/antes-p95-prometheus.json": "d6742980b97f94d6d2b20850de3babc28aef6ad129149c32cdf90ceb43795e16",
+    "docs/evidencias/antes-p95.png": "a0203bebfeba5d8d0e0f88deb0ad657ac22af3fa988c068e37a6f109349fd927",
+    "docs/evidencias/antes-reproduce.txt": "074755b4c79d911037b324f1b1127e50a1329cfba295f607a8099c1b66d8563c",
+    "docs/evidencias/antes-trace-erro.json": "365df2318a69a6998b02b6595f9b59087189a1a1c56470948269e63e3e834128",
+    "docs/evidencias/antes-trace-lento.json": "f3878c6549cccaa3512869f75efd48ecae43da81dd384117441e288befb31305",
+    "docs/evidencias/antes-traces.json": "a68b9a4e295ee124bf1c871cb06cab73201dec5442891b485e2df8f8f6d28981",
+    "docs/evidencias/README.md": "2c5ef31ac8d91da3d1483b0b396f62fab8dc05418bad1fcea5e94e6f8fec7ca3",
+    "docs/evidencias/202611221350/metrics-phase-1.json": "9bbd3bdf8b6969a884c13f2de692546d13d2a8bfcc9f3f30430cbf160669b445",
+    "docs/evidencias/202611221350/metrics-phase-2.json": "c35916a893a557a90c4f9fb3137e82f334910a14446c929226e23fa30d589878",
+    "docs/evidencias/202611221350/traces.json": "3ef6c1937fc952e6d43cd624df5e824719ea5bddfabf062cc1617e431913c0e0",
+    "docs/evidencias/202611221350/verification.json": "257f88726697512ade770031d90b2eb2a3a7b3b09187ab79d2141498ba7a7d53"
+  },
+  "commands": [
+    {
+      "command": "make down",
+      "startedUtc": "2026-11-22T20:06:55.530473+00:00",
+      "endedUtc": "2026-11-22T20:06:56.826230+00:00",
+      "exitCode": 0
+    },
+    {
+      "command": "make reproduce",
+      "startedUtc": "2026-11-22T20:06:56.833384+00:00",
+      "endedUtc": "2026-11-22T20:10:11.192971+00:00",
+      "exitCode": 0
+    }
+  ],
+  "partnerProfilesAndLoadgenUnchanged": true,
+  "endedUtc": "2026-11-22T20:10:11.193045+00:00"
+}

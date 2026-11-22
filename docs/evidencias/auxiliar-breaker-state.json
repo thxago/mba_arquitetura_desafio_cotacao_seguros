@@ -1,0 +1,42 @@
+{
+  "source": "auxiliar-api.log callback transition timestamps; reconstructed state, not an emitted gauge.",
+  "points": [
+    [
+      1795378315.784861,
+      0
+    ],
+    [
+      1795378374.026342,
+      2
+    ],
+    [
+      1795378381.345122,
+      1
+    ],
+    [
+      1795378381.532459,
+      0
+    ],
+    [
+      1795378407,
+      0
+    ]
+  ],
+  "transitions": [
+    {
+      "timestamp": "2026-11-22T20:12:54.026342001Z",
+      "from": "closed",
+      "to": "open"
+    },
+    {
+      "timestamp": "2026-11-22T20:13:01.345122224Z",
+      "from": "open",
+      "to": "half-open"
+    },
+    {
+      "timestamp": "2026-11-22T20:13:01.532459944Z",
+      "from": "half-open",
+      "to": "closed"
+    }
+  ]
+}

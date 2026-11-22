@@ -1,0 +1,5 @@
+cotacao-quotation-api  | 2026-11-22T20:11:50.075485617Z 2026/11/22 20:11:50 quotation-api: OpenTelemetry on | service="quotation-api" collector=http://otel-collector:4317
+cotacao-quotation-api  | 2026-11-22T20:11:50.075679344Z 2026/11/22 20:11:50 quotation-api listening on :8080 | partners=3 brokers=[corretora-a corretora-b]
+cotacao-quotation-api  | 2026-11-22T20:12:54.026342001Z 2026/11/22 20:12:54 partner breaker: partner=partner-flaky from=closed to=open
+cotacao-quotation-api  | 2026-11-22T20:13:01.345122224Z 2026/11/22 20:13:01 partner breaker: partner=partner-flaky from=open to=half-open
+cotacao-quotation-api  | 2026-11-22T20:13:01.532459944Z 2026/11/22 20:13:01 partner breaker: partner=partner-flaky from=half-open to=closed
